@@ -1,0 +1,61 @@
+cmake_minimum_required(VERSION 3.10)
+project(yy_cybergear)
+
+set(CMAKE_CXX_STANDARD 17)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+find_package(ament_cmake_auto REQUIRED)
+ament_auto_find_build_dependencies()
+
+# cybergear library ==========================
+set(TARGET cybergear)
+ament_auto_add_library(${TARGET} SHARED
+  src/${TARGET}.cpp
+  src/data_frame_codec.cpp
+)
+unset(TARGET)
+
+# exmp_01_get_mcu_id ============================
+set(TARGET exmp_01_get_mcu_id)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
+
+# exmp_02_monitor_status ============================
+set(TARGET exmp_02_monitor_status)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
+
+# exmp_03_position_sin_wave ============================
+set(TARGET exmp_03_position_sin_wave)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
+
+# exmp_04_speed_constant ============================
+set(TARGET exmp_04_speed_constant)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
+
+# exmp_05_torque_zero ============================
+set(TARGET exmp_05_torque_zero)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
+
+  # GoogleTest
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_data_frame_codec
+    test/test_data_frame_codec.cpp
+  )
+  if(TARGET test_data_frame_codec)
+    target_include_directories(test_data_frame_codec PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(test_data_frame_codec cybergear)
+  endif()
+endif()
+
+ament_auto_package()

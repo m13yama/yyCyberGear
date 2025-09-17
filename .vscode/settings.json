@@ -1,0 +1,26 @@
+{
+  "[cpp]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2
+  },
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4
+  },
+  "[xml]": {
+    "editor.defaultFormatter": "DotJoshJohnson.xml",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+  },
+  "editor.formatOnSave": false,
+  "files.associations": {
+    "*.cpp": "cpp",
+    "*.hpp": "cpp",
+    "*.repos": "yaml"
+  },
+  "cSpell.words": [
+    "cybergear"
+  ],
+}

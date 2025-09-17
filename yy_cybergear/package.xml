@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>yy_cybergear</name>
+  <version>0.0.1</version>
+  <description>CyberGear Cpp Driver</description>
+  <maintainer email="yuki8mamo10.hu@gmail.com">yuki yamamoto</maintainer>
+  <license>Apache License 2.0</license>
+
+  <depend>yy_socket_can</depend>
+  <depend>cli11</depend>
+
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
+
+  <test_depend>ament_clang_format</test_depend>
+  <test_depend>ament_clang_tidy</test_depend>
+  <test_depend>ament_cmake_cppcheck</test_depend>
+  <test_depend>ament_cmake_cpplint</test_depend>
+  <test_depend>ament_cmake_lint_cmake</test_depend>
+  <test_depend>ament_cmake_xmllint</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

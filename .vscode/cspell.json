@@ -1,0 +1,25 @@
+{
+  "language": "en",
+  "version": "0.2",
+  "words": [
+    "canfd",
+    "CANWRAP",
+    "clangd",
+    "clipf",
+    "colcon",
+    "coveragepy",
+    "cybergear",
+    "distro",
+    "exmp",
+    "gtest",
+    "htmlcov",
+    "Mbps",
+    "nosetests",
+    "osrf",
+    "pycache",
+    "pytest",
+    "sdist",
+    "SIOCGIFINDEX",
+    "vcstool"
+  ]
+}
