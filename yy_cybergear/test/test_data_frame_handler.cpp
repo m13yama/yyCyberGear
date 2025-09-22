@@ -6,9 +6,9 @@
 #include <cstdint>
 #include <cstring>
 
-#include "yy_cybergear/data_frame_codec.hpp"
+#include "yy_cybergear/data_frame_handler.hpp"
 
-namespace yyc = yy_cybergear::data_frame_codec;
+namespace yyc = yy_cybergear::data_frame_handler;
 
 namespace
 {
@@ -41,7 +41,7 @@ inline uint16_t le16(const uint8_t * p)
 
 }  // namespace
 
-TEST(DataFrameCodec, EncodeOperationCommandBasicZeros)
+TEST(OpCommandHandler, BasicZerosAndQuantization)
 {
   can_frame f{};
   yyc::OpCommand cmd{};  // all zeros
@@ -78,7 +78,7 @@ TEST(DataFrameCodec, EncodeOperationCommandBasicZeros)
   EXPECT_EQ(((f.can_id & CAN_EFF_MASK) >> 8) & 0xFFFFu, ut);
 }
 
-TEST(DataFrameCodec, EncodeHelpersFrames)
+TEST(ControlFrameHandler, HelperFunctions)
 {
   can_frame f{};
   const uint8_t host = 0xA5;
@@ -111,10 +111,6 @@ TEST(DataFrameCodec, EncodeHelpersFrames)
   EXPECT_EQ((id & 0xFFu), motor);
   EXPECT_EQ(f.data[0], 0x01);
 
-  yyc::buildFaultWarningReq(host, motor, f);
-  EXPECT_EQ((f.can_id & CAN_EFF_MASK), yyc::buildEffId(21, host, motor));
-  for (int i = 0; i < 8; ++i) EXPECT_EQ(f.data[i], 0);
-
   const uint8_t code = 3;
   yyc::buildSetBaudRateReq(host, motor, code, f);
   EXPECT_EQ((f.can_id & CAN_EFF_MASK), yyc::buildEffId(22, host, motor));
@@ -139,7 +135,7 @@ TEST(DataFrameCodec, EncodeHelpersFrames)
   for (int i = 1; i < 8; ++i) EXPECT_EQ(f.data[i], 0);
 }
 
-TEST(DataFrameCodec, DecodeStatus)
+TEST(StatusHandler, ParseStatusFrame)
 {
   can_frame f{};
   // Build an EFF id for type 2 with mode=2, fault bits=0x15, motor id=0x2C
@@ -177,7 +173,7 @@ TEST(DataFrameCodec, DecodeStatus)
   EXPECT_FALSE(yyc::parseStatus(f2, s));
 }
 
-TEST(DataFrameCodec, DecodeMcuIdResponse)
+TEST(DeviceIdHandler, ParseMcuIdResponse)
 {
   can_frame f{};
   // type==0, low8==0xFE, mid bytes contain motor id (either hi or lo)
@@ -212,7 +208,7 @@ TEST(DataFrameCodec, DecodeMcuIdResponse)
   EXPECT_TRUE(yyc::parseDeviceIdResp(f_hi, motor_id, out));
 }
 
-TEST(DataFrameCodec, DecodeFaultWarningResponse)
+TEST(FaultWarningHandler, ParseFaultWarningResponse)
 {
   can_frame f{};
   const uint8_t host = 0x55;
@@ -236,7 +232,7 @@ TEST(DataFrameCodec, DecodeFaultWarningResponse)
   EXPECT_FALSE(yyc::parseFaultWarningResp(f, static_cast<uint8_t>(host + 1), fw));
 }
 
-TEST(DataFrameCodec, DecodeReadParamResp)
+TEST(ReadParamHandler, ParseReadParamResponse)
 {
   can_frame f{};
   const uint8_t host = 0x0A;

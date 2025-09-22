@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef YY_CYBERGEAR__DATA_FRAME_CODEC_HPP_
-#define YY_CYBERGEAR__DATA_FRAME_CODEC_HPP_
+#ifndef YY_CYBERGEAR__DATA_FRAME_HANDLER_HPP_
+#define YY_CYBERGEAR__DATA_FRAME_HANDLER_HPP_
 
 #include <linux/can.h>
 
@@ -24,7 +24,7 @@
 
 namespace yy_cybergear
 {
-namespace data_frame_codec
+namespace data_frame_handler
 {
 
 // Pure helper API to build and parse CyberGear CAN frames.
@@ -58,8 +58,6 @@ void buildReadParamReq(uint8_t host_id, uint8_t motor_id, uint16_t index, struct
 void buildWriteParamReq(
   uint8_t host_id, uint8_t motor_id, uint16_t index, const std::array<uint8_t, 4> & data,
   struct can_frame & out);
-// Type 21: Fault/warning request
-void buildFaultWarningReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
 // Type 22: Set baud rate request
 void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct can_frame & out);
 
@@ -82,7 +80,7 @@ constexpr uint32_t buildEffId(uint8_t type, uint8_t host_id, uint8_t motor_id) n
 
 constexpr bool isExtended(uint32_t can_id) noexcept { return (can_id & CAN_EFF_FLAG) != 0; }
 
-}  // namespace data_frame_codec
+}  // namespace data_frame_handler
 }  // namespace yy_cybergear
 
-#endif  // YY_CYBERGEAR__DATA_FRAME_CODEC_HPP_
+#endif  // YY_CYBERGEAR__DATA_FRAME_HANDLER_HPP_
