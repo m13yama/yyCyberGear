@@ -503,7 +503,10 @@ Result<Status> CyberGear::setSpeedKp(float v, int timeout_ms)
   return writeParamFloat(SPEED_KP, v, timeout_ms);
 }
 
-Result<float> CyberGear::getSpeedKp(int timeout_ms) { return readParamFloat(SPEED_KP, timeout_ms); }
+Result<float> CyberGear::getSpeedKp(int timeout_ms)
+{
+  return readParamFloat(SPEED_KP, timeout_ms);
+}
 
 Result<Status> CyberGear::setSpeedKi(float v, int timeout_ms)
 {
