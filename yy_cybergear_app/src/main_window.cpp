@@ -552,8 +552,8 @@ void MainWindow::onOpPositionChanged(double value)
     yy_cybergear::OpCommand cmd{};
     cmd.pos_rad = static_cast<float>(value);
     cmd.vel_rad_s = static_cast<float>(m_opVelSpin ? m_opVelSpin->value() : 0.0);
-    cmd.kp = static_cast<float>(m_kpSpin->value());
-    cmd.kd = static_cast<float>(m_kdSpin->value());
+    cmd.kp = static_cast<float>(m_kpSpin ? m_kpSpin->value() : 0.0);
+    cmd.kd = static_cast<float>(m_kdSpin ? m_kdSpin->value() : 0.0);
     cmd.torque_Nm = static_cast<float>(m_opTauSpin ? m_opTauSpin->value() : 0.0);
     auto r = m_cyberGear->sendOperationCommand(cmd, 50);
     if (r.ok() && r.value().has_value()) {
