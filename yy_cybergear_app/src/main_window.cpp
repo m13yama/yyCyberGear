@@ -133,7 +133,7 @@ void MainWindow::setupUI()
   m_kpSpin->setRange(0.0, 500.0);
   m_kpSpin->setDecimals(2);
   m_kpSpin->setSingleStep(1.0);
-  m_kpSpin->setValue(50.0);
+  m_kpSpin->setValue(10.0);
   posLayout->addWidget(m_kpSpin, 0, 3);
 
   posLayout->addWidget(new QLabel("Target vel [rad/s] :"), 1, 0);

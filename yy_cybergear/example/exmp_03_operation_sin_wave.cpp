@@ -47,7 +47,7 @@ int main(int argc, char ** argv)
   // Sine parameters
   double amp_rad = 0.5;     // amplitude [rad]
   double freq_hz = 0.5;     // frequency [Hz]
-  double kp = 50.0;         // position gain
+  double kp = 10.0;         // position gain
   double kd = 1.0;          // velocity gain
   double target_vel = 0.0;  // additional target velocity [rad/s]
   double tau_offset = 0.0;  // offset torque [Nm]
