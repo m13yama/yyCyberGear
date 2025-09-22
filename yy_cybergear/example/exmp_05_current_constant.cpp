@@ -33,13 +33,15 @@ void handle_sigint(int) { g_running = false; }
 
 int main(int argc, char ** argv)
 {
-  CLI::App app{"CyberGear: zero torque (Iq=0) in current mode (simple)"};
+  CLI::App app{"CyberGear: constant current control (simple)"};
 
   std::string ifname{"can0"};
   std::string host_id_str{"0x01"};
   std::string motor_id_str{"0x01"};
   bool verbose = false;
 
+  // Control parameters
+  double iq_a = 0.0;        // target q-axis current [A] (can be negative)
   double limit_tau = 6.0;   // torque limit [Nm]
   double limit_cur = 10.0;  // current limit [A]
   int rate_hz = 100;        // command rate [Hz]
@@ -50,6 +52,8 @@ int main(int argc, char ** argv)
   app.add_option("-H,--host-id", host_id_str, "Host ID (decimal or 0x-prefixed hex)")
     ->capture_default_str();
   app.add_option("-M,--motor-id", motor_id_str, "Motor ID (decimal or 0x-prefixed hex)")
+    ->capture_default_str();
+  app.add_option("-c,--current", iq_a, "Target current Iq [A] (negative allowed)")
     ->capture_default_str();
   app.add_option("--limit-tau", limit_tau, "Torque limit [Nm]")
     ->check(CLI::NonNegativeNumber)
@@ -103,10 +107,10 @@ int main(int argc, char ** argv)
     const auto t0 = clock::now();
     const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / rate_hz)};
 
-    std::cout << "Zero torque on motor 0x" << std::uppercase << std::hex << std::setw(2)
-              << std::setfill('0') << static_cast<unsigned>(motor) << std::dec
-              << ": IqRef=0.0 A, rate=" << rate_hz << " Hz, limit_tau=" << limit_tau
-              << " Nm, limit_cur=" << limit_cur << " A" << '\n';
+    std::cout << "Constant current control on motor 0x" << std::uppercase << std::hex
+              << std::setw(2) << std::setfill('0') << static_cast<unsigned>(motor) << std::dec
+              << ": IqRef=" << iq_a << " A, limit_tau=" << limit_tau
+              << " Nm, limit_cur=" << limit_cur << " A, rate=" << rate_hz << " Hz" << '\n';
 
     while (g_running) {
       const auto start = clock::now();
@@ -115,7 +119,7 @@ int main(int argc, char ** argv)
       if (duration > 0.0 && t >= duration) break;
 
       {
-        auto r = dev.setIqReference(0.0f);
+        auto r = dev.setIqReference(static_cast<float>(iq_a));
         if (r.ok()) {
           const auto & st = *r.value();
           std::cout << std::fixed << std::setprecision(3) << " t=" << t << "s"
