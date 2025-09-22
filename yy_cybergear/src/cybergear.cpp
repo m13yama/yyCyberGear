@@ -24,7 +24,6 @@
 #include <sstream>
 
 #include "yy_cybergear/data_frame_handler.hpp"
-#include "yy_cybergear/parameter_indexes.hpp"
 
 namespace yy_cybergear
 {
@@ -372,104 +371,104 @@ Result<Status> CyberGear::setRunMode(RunMode mode, int timeout_ms)
 {
   if (!can_.isOpen()) return Result<Status>::failure(ErrorCode::NotOpen);
   std::array<uint8_t, 4> data{static_cast<uint8_t>(mode), 0, 0, 0};
-  return writeParamRaw(param::RUN_MODE, data, timeout_ms);
+  return writeParamRaw(RUN_MODE, data, timeout_ms);
 }
 
 Result<uint8_t> CyberGear::getRunMode(int timeout_ms)
 {
-  auto rr = readParamRaw(param::RUN_MODE, timeout_ms);
+  auto rr = readParamRaw(RUN_MODE, timeout_ms);
   if (!rr.ok()) return Result<uint8_t>::failure(rr.error().value());
   return Result<uint8_t>::success((*rr.value())[0]);
 }
 
 Result<Status> CyberGear::setIqReference(float amps, int timeout_ms)
 {
-  return writeParamFloat(param::IQ_REFERENCE, amps, timeout_ms);
+  return writeParamFloat(IQ_REFERENCE, amps, timeout_ms);
 }
 
 Result<float> CyberGear::getIqReference(int timeout_ms)
 {
-  return readParamFloat(param::IQ_REFERENCE, timeout_ms);
+  return readParamFloat(IQ_REFERENCE, timeout_ms);
 }
 
 Result<Status> CyberGear::setSpeedReference(float rad_s, int timeout_ms)
 {
-  return writeParamFloat(param::SPEED_REFERENCE, rad_s, timeout_ms);
+  return writeParamFloat(SPEED_REFERENCE, rad_s, timeout_ms);
 }
 
 Result<float> CyberGear::getSpeedReference(int timeout_ms)
 {
-  return readParamFloat(param::SPEED_REFERENCE, timeout_ms);
+  return readParamFloat(SPEED_REFERENCE, timeout_ms);
 }
 
 Result<Status> CyberGear::setTorqueLimit(float nm, int timeout_ms)
 {
-  return writeParamFloat(param::TORQUE_LIMIT, nm, timeout_ms);
+  return writeParamFloat(TORQUE_LIMIT, nm, timeout_ms);
 }
 
 Result<float> CyberGear::getTorqueLimit(int timeout_ms)
 {
-  return readParamFloat(param::TORQUE_LIMIT, timeout_ms);
+  return readParamFloat(TORQUE_LIMIT, timeout_ms);
 }
 
 Result<Status> CyberGear::setCurrentKp(float v, int timeout_ms)
 {
-  return writeParamFloat(param::CURRENT_KP, v, timeout_ms);
+  return writeParamFloat(CURRENT_KP, v, timeout_ms);
 }
 
 Result<float> CyberGear::getCurrentKp(int timeout_ms)
 {
-  return readParamFloat(param::CURRENT_KP, timeout_ms);
+  return readParamFloat(CURRENT_KP, timeout_ms);
 }
 
 Result<Status> CyberGear::setCurrentKi(float v, int timeout_ms)
 {
-  return writeParamFloat(param::CURRENT_KI, v, timeout_ms);
+  return writeParamFloat(CURRENT_KI, v, timeout_ms);
 }
 
 Result<float> CyberGear::getCurrentKi(int timeout_ms)
 {
-  return readParamFloat(param::CURRENT_KI, timeout_ms);
+  return readParamFloat(CURRENT_KI, timeout_ms);
 }
 
 Result<Status> CyberGear::setCurrentFilterGain(float v, int timeout_ms)
 {
-  return writeParamFloat(param::CURRENT_FILTER_GAIN, v, timeout_ms);
+  return writeParamFloat(CURRENT_FILTER_GAIN, v, timeout_ms);
 }
 
 Result<float> CyberGear::getCurrentFilterGain(int timeout_ms)
 {
-  return readParamFloat(param::CURRENT_FILTER_GAIN, timeout_ms);
+  return readParamFloat(CURRENT_FILTER_GAIN, timeout_ms);
 }
 
 Result<Status> CyberGear::setPositionReference(float rad, int timeout_ms)
 {
-  return writeParamFloat(param::POSITION_REFERENCE, rad, timeout_ms);
+  return writeParamFloat(POSITION_REFERENCE, rad, timeout_ms);
 }
 
 Result<float> CyberGear::getPositionReference(int timeout_ms)
 {
-  return readParamFloat(param::POSITION_REFERENCE, timeout_ms);
+  return readParamFloat(POSITION_REFERENCE, timeout_ms);
 }
 
 Result<Status> CyberGear::setSpeedLimit(float rad_s, int timeout_ms)
 {
-  return writeParamFloat(param::SPEED_LIMIT, rad_s, timeout_ms);
+  return writeParamFloat(SPEED_LIMIT, rad_s, timeout_ms);
 }
 
 Result<float> CyberGear::getSpeedLimit(int timeout_ms)
 {
-  return readParamFloat(param::SPEED_LIMIT, timeout_ms);
+  return readParamFloat(SPEED_LIMIT, timeout_ms);
 }
 
 Result<Status> CyberGear::setCurrentLimit(float amps, int timeout_ms)
 {
-  return writeParamFloat(param::CURRENT_LIMIT, amps, timeout_ms);
+  return writeParamFloat(CURRENT_LIMIT, amps, timeout_ms);
 }
 
 Result<float> CyberGear::getCurrentLimit(int timeout_ms)
 {
-  return readParamFloat(param::CURRENT_LIMIT, timeout_ms);
+  return readParamFloat(CURRENT_LIMIT, timeout_ms);
 }
 
 Result<Status> CyberGear::setRotationTurns(int16_t turns, int timeout_ms)
@@ -477,12 +476,12 @@ Result<Status> CyberGear::setRotationTurns(int16_t turns, int timeout_ms)
   if (!can_.isOpen()) return Result<Status>::failure(ErrorCode::NotOpen);
   std::array<uint8_t, 4> raw{0, 0, 0, 0};
   std::memcpy(raw.data(), &turns, 2);
-  return writeParamRaw(param::ROTATION_TURNS, raw, timeout_ms);
+  return writeParamRaw(ROTATION_TURNS, raw, timeout_ms);
 }
 
 Result<int16_t> CyberGear::getRotationTurns(int timeout_ms)
 {
-  auto rr = readParamRaw(param::ROTATION_TURNS, timeout_ms);
+  auto rr = readParamRaw(ROTATION_TURNS, timeout_ms);
   if (!rr.ok()) return Result<int16_t>::failure(rr.error().value());
   int16_t turns = 0;
   std::memcpy(&turns, rr.value()->data(), 2);
@@ -491,53 +490,47 @@ Result<int16_t> CyberGear::getRotationTurns(int timeout_ms)
 
 Result<Status> CyberGear::setPositionKp(float v, int timeout_ms)
 {
-  return writeParamFloat(param::POSITION_KP, v, timeout_ms);
+  return writeParamFloat(POSITION_KP, v, timeout_ms);
 }
 
 Result<float> CyberGear::getPositionKp(int timeout_ms)
 {
-  return readParamFloat(param::POSITION_KP, timeout_ms);
+  return readParamFloat(POSITION_KP, timeout_ms);
 }
 
 Result<Status> CyberGear::setSpeedKp(float v, int timeout_ms)
 {
-  return writeParamFloat(param::SPEED_KP, v, timeout_ms);
+  return writeParamFloat(SPEED_KP, v, timeout_ms);
 }
 
-Result<float> CyberGear::getSpeedKp(int timeout_ms)
-{
-  return readParamFloat(param::SPEED_KP, timeout_ms);
-}
+Result<float> CyberGear::getSpeedKp(int timeout_ms) { return readParamFloat(SPEED_KP, timeout_ms); }
 
 Result<Status> CyberGear::setSpeedKi(float v, int timeout_ms)
 {
-  return writeParamFloat(param::SPEED_KI, v, timeout_ms);
+  return writeParamFloat(SPEED_KI, v, timeout_ms);
 }
 
-Result<float> CyberGear::getSpeedKi(int timeout_ms)
-{
-  return readParamFloat(param::SPEED_KI, timeout_ms);
-}
+Result<float> CyberGear::getSpeedKi(int timeout_ms) { return readParamFloat(SPEED_KI, timeout_ms); }
 
 // The following parameters are read-only.
 Result<float> CyberGear::getMechanicalPosition(int timeout_ms)
 {
-  return readParamFloat(param::MECHANICAL_POSITION, timeout_ms);
+  return readParamFloat(MECHANICAL_POSITION, timeout_ms);
 }
 
 Result<float> CyberGear::getIqFilter(int timeout_ms)
 {
-  return readParamFloat(param::IQ_FILTER, timeout_ms);
+  return readParamFloat(IQ_FILTER, timeout_ms);
 }
 
 Result<float> CyberGear::getMechanicalVelocity(int timeout_ms)
 {
-  return readParamFloat(param::MECHANICAL_VELOCITY, timeout_ms);
+  return readParamFloat(MECHANICAL_VELOCITY, timeout_ms);
 }
 
 Result<float> CyberGear::getBusVoltage(int timeout_ms)
 {
-  return readParamFloat(param::BUS_VOLTAGE, timeout_ms);
+  return readParamFloat(BUS_VOLTAGE, timeout_ms);
 }
 
 }  // namespace yy_cybergear
