@@ -132,6 +132,15 @@ int main(int argc, char ** argv)
                     << static_cast<unsigned>(st.fault_bits) << std::dec << " mid=0x"
                     << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
                     << static_cast<unsigned>(st.motor_can_id) << std::dec << '\n';
+
+          // If any fault bits are set, stop immediately and exit with failure
+          if (st.fault_bits != 0) {
+            std::cerr << "Fault detected: bits=0b" << std::uppercase << std::hex << std::setw(2)
+                      << std::setfill('0') << static_cast<unsigned>(st.fault_bits) << std::dec
+                      << ". Stopping motor and exiting." << '\n';
+            (void)dev.stopMotor();
+            return EXIT_FAILURE;
+          }
         } else {
           std::cerr << "Failed to set Iq reference: " << yy_cybergear::to_string(*r.error())
                     << ". Stopping motor and exiting." << '\n';
