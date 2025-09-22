@@ -38,8 +38,8 @@ set(TARGET exmp_04_speed_constant)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
-# exmp_05_torque_zero ============================
-set(TARGET exmp_05_torque_zero)
+# exmp_05_current_constant ============================
+set(TARGET exmp_05_current_constant)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
