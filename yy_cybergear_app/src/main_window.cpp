@@ -221,35 +221,6 @@ void MainWindow::setupUI()
 
   m_mainLayout->addWidget(m_currentGroup);
 
-  // Limits group
-  m_limitsGroup = new QGroupBox("Limits");
-  QGridLayout * limitsLayout = new QGridLayout(m_limitsGroup);
-
-  limitsLayout->addWidget(new QLabel("Torque limit [Nm]:"), 0, 0);
-  m_torqueLimitSpin = new QDoubleSpinBox();
-  m_torqueLimitSpin->setRange(0.0, 30.0);
-  m_torqueLimitSpin->setDecimals(2);
-  m_torqueLimitSpin->setSingleStep(0.1);
-  m_torqueLimitSpin->setValue(6.0);
-  // Run is controlled by Enable/Stop only
-  m_speedLimitSpin = new QDoubleSpinBox();
-  m_speedLimitSpin->setValue(10.0);
-  limitsLayout->addWidget(m_speedLimitSpin, 0, 3);
-
-  limitsLayout->addWidget(new QLabel("Current limit [A]:"), 1, 0);
-  m_currentLimitSpin = new QDoubleSpinBox();
-  m_currentLimitSpin->setRange(0.0, 40.0);
-  m_currentLimitSpin->setDecimals(2);
-  m_currentLimitSpin->setSingleStep(0.5);
-  m_currentLimitSpin->setValue(10.0);
-  limitsLayout->addWidget(m_currentLimitSpin, 1, 1);
-
-  m_applyLimitsBtn = new QPushButton("Apply Limits");
-  connect(m_applyLimitsBtn, &QPushButton::clicked, this, &MainWindow::onApplyLimitsClicked);
-  limitsLayout->addWidget(m_applyLimitsBtn, 1, 3);
-
-  m_mainLayout->addWidget(m_limitsGroup);
-
   // Status group
   m_statusGroup = new QGroupBox("Motor Status");
   QGridLayout * statusLayout = new QGridLayout(m_statusGroup);
@@ -340,10 +311,9 @@ void MainWindow::onConnectClicked()
     m_cyberGear->open();
     m_isConnected = true;
 
-    // Initial safe setup: clear faults, speed mode, limits
+    // Initial safe setup: clear faults and set speed mode
     (void)m_cyberGear->clearFaults();
     (void)m_cyberGear->setRunMode(yy_cybergear::CyberGear::RunMode::Speed);
-    onApplyLimitsClicked();
 
     logMessage(
       QString("Connected to %1 (Host: %2, Motor: %3)").arg(interface).arg(hostId).arg(motorId));
@@ -506,23 +476,6 @@ void MainWindow::onGetMcuIdClicked()
   }
 }
 
-void MainWindow::onApplyLimitsClicked()
-{
-  if (!m_cyberGear) return;
-  try {
-    bool okAll = true;
-    if (!m_cyberGear->setTorqueLimit(static_cast<float>(m_torqueLimitSpin->value())).ok())
-      okAll = false;
-    if (!m_cyberGear->setSpeedLimit(static_cast<float>(m_speedLimitSpin->value())).ok())
-      okAll = false;
-    if (!m_cyberGear->setCurrentLimit(static_cast<float>(m_currentLimitSpin->value())).ok())
-      okAll = false;
-    logMessage(okAll ? "Limits applied" : "Some limits failed to apply");
-  } catch (const std::exception & e) {
-    logMessage(QString("Apply limits error: %1").arg(e.what()));
-  }
-}
-
 void MainWindow::onTargetSpeedChanged(double value)
 {
   // If connected and not currently running the loop, apply the new target immediately
@@ -674,7 +627,6 @@ void MainWindow::updateConnectionStatus()
   m_positionGroup->setEnabled(connected);
   m_commandGroup->setEnabled(connected);
   m_controlGroup->setEnabled(connected);
-  m_limitsGroup->setEnabled(connected);
   m_runModeGroup->setEnabled(connected);
   m_currentGroup->setEnabled(connected);
 }

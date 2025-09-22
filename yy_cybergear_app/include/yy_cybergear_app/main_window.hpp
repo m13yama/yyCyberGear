@@ -37,7 +37,6 @@ private slots:
   void onClearFaultsClicked();
   void onSetMechanicalZeroClicked();
   void onGetMcuIdClicked();
-  void onApplyLimitsClicked();
   void onTimerTick();
   void onOpPositionChanged(double value);
   void onOpVelChanged(double value);
@@ -109,13 +108,6 @@ private:
   // Current control
   QGroupBox * m_currentGroup;
   QDoubleSpinBox * m_iqSpin;  // target q-axis current [A]
-
-  // Limits
-  QGroupBox * m_limitsGroup;
-  QDoubleSpinBox * m_torqueLimitSpin;
-  QDoubleSpinBox * m_speedLimitSpin;
-  QDoubleSpinBox * m_currentLimitSpin;
-  QPushButton * m_applyLimitsBtn;
 
   // Status display
   QGroupBox * m_statusGroup;
