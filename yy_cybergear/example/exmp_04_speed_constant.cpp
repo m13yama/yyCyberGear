@@ -123,14 +123,16 @@ int main(int argc, char ** argv)
         auto r = dev.setSpeedReference(static_cast<float>(speed_rad_s));
         if (r.ok()) {
           const auto & st = *r.value();
+          const auto mode_str = yy_cybergear::mode_to_string(st.mode);
+          const auto faults_vec = yy_cybergear::fault_bits_to_string(st.fault_bits);
+          std::string faults_str = faults_vec.empty() ? std::string("none") : faults_vec.front();
+          for (size_t i = 1; i < faults_vec.size(); ++i) faults_str += ", " + faults_vec[i];
           std::cout << std::fixed << std::setprecision(3) << " t=" << t << "s"
                     << " ang=" << st.angle_rad << "rad"
                     << " vel=" << st.vel_rad_s << "rad/s"
                     << " tau=" << st.torque_Nm << "Nm"
                     << " T=" << st.temperature_c << "C"
-                    << " mode=" << static_cast<unsigned>(st.mode) << " faults=0b" << std::uppercase
-                    << std::hex << std::setw(2) << std::setfill('0')
-                    << static_cast<unsigned>(st.fault_bits) << std::dec << " mid=0x"
+                    << " mode=" << mode_str << " faults=" << faults_str << " mid=0x"
                     << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
                     << static_cast<unsigned>(st.motor_can_id) << std::dec << '\n';
 
@@ -155,7 +157,8 @@ int main(int argc, char ** argv)
       if (end > deadline) {
         const auto over = end - deadline;
         const auto over_us = std::chrono::duration_cast<std::chrono::microseconds>(over).count();
-        const auto period_us = std::chrono::duration_cast<std::chrono::microseconds>(dt_ns).count();
+        const auto period_us =
+          std::chrono::duration_cast<std::chrono::microseconds>(dt_ns).count();
         std::cerr << "Control loop overrun: " << over_us << " us past the period (" << period_us
                   << " us). Aborting." << '\n';
         (void)dev.stopMotor();
