@@ -106,7 +106,7 @@ inline std::vector<std::string> fault_bits_to_string(uint8_t fault_bits)
   const uint8_t fb = static_cast<uint8_t>(fault_bits & 0x3Fu);
   std::vector<std::string> out;
   if (fb & (1u << 0)) out.emplace_back("Undervoltage fault");
-  if (fb & (1u << 1)) out.emplace_back("overcurrent");
+  if (fb & (1u << 1)) out.emplace_back("Overcurrent fault");
   if (fb & (1u << 2)) out.emplace_back("over temperature");
   if (fb & (1u << 3)) out.emplace_back("Magnetic encoding failure");
   if (fb & (1u << 4)) out.emplace_back("HALL encoding failure");
