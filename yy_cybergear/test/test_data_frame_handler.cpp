@@ -111,10 +111,6 @@ TEST(ControlFrameHandler, HelperFunctions)
   EXPECT_EQ((id & 0xFFu), motor);
   EXPECT_EQ(f.data[0], 0x01);
 
-  yyc::buildFaultWarningReq(host, motor, f);
-  EXPECT_EQ((f.can_id & CAN_EFF_MASK), yyc::buildEffId(21, host, motor));
-  for (int i = 0; i < 8; ++i) EXPECT_EQ(f.data[i], 0);
-
   const uint8_t code = 3;
   yyc::buildSetBaudRateReq(host, motor, code, f);
   EXPECT_EQ((f.can_id & CAN_EFF_MASK), yyc::buildEffId(22, host, motor));

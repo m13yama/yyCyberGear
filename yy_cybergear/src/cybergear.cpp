@@ -267,31 +267,6 @@ Result<std::array<uint8_t, kUidLen>> CyberGear::changeMotorId(
   return Result<std::array<uint8_t, kUidLen>>::failure(ErrorCode::Timeout);
 }
 
-Result<FaultWarning> CyberGear::requestFaultWarning(int timeout_ms)
-{
-  if (!can_.isOpen()) return Result<FaultWarning>::failure(ErrorCode::NotOpen);
-  struct can_frame tx
-  {
-  };
-  dfh::buildFaultWarningReq(host_id_, motor_id_, tx);
-  if (verbose_) debugPrintFrame(tx);
-  can_.send(tx);
-
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
-  while (std::chrono::steady_clock::now() < deadline) {
-    struct can_frame rx
-    {
-    };
-    if (!can_.recv(rx, 100)) continue;
-    FaultWarning fw{};
-    if (dfh::parseFaultWarningResp(rx, host_id_, fw)) {
-      if (verbose_) debugPrintFrame(rx);
-      return Result<FaultWarning>::success(fw);
-    }
-  }
-  return Result<FaultWarning>::failure(ErrorCode::Timeout);
-}
-
 // NOTE: Baud rate change is disabled intentionally.
 // Please refer to the document process to modify it carefully.
 // Operation errors may cause problems such as being unable to connect to

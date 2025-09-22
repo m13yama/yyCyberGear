@@ -58,8 +58,6 @@ void buildReadParamReq(uint8_t host_id, uint8_t motor_id, uint16_t index, struct
 void buildWriteParamReq(
   uint8_t host_id, uint8_t motor_id, uint16_t index, const std::array<uint8_t, 4> & data,
   struct can_frame & out);
-// Type 21: Fault/warning request
-void buildFaultWarningReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
 // Type 22: Set baud rate request
 void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct can_frame & out);
 
