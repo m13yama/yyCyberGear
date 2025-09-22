@@ -38,7 +38,6 @@ private slots:
   void onSetMechanicalZeroClicked();
   void onGetMcuIdClicked();
   void onApplyLimitsClicked();
-  void onRateChanged(int hz);
   void onTimerTick();
   void onTargetSpeedChanged(double value);
   void onTargetPositionChanged(double value);
@@ -90,7 +89,6 @@ private:
   // Speed control
   QGroupBox * m_commandGroup;
   QDoubleSpinBox * m_speedSpin;  // target speed [rad/s]
-  QSpinBox * m_rateSpin;         // control/monitor rate [Hz]
 
   // Position control
   QGroupBox * m_positionGroup;

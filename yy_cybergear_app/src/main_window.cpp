@@ -91,7 +91,7 @@ void MainWindow::setupUI()
   m_mainLayout->addWidget(m_controlGroup);
 
   // Run Mode group
-  m_runModeGroup = new QGroupBox("Run Mode");
+  m_runModeGroup = new QGroupBox("operationモード");
   QGridLayout * modeLayout = new QGridLayout(m_runModeGroup);
   modeLayout->addWidget(new QLabel("Mode:"), 0, 0);
   m_runModeCombo = new QComboBox();
@@ -113,39 +113,8 @@ void MainWindow::setupUI()
 
   m_mainLayout->addWidget(m_runModeGroup);
 
-  // Command group (Speed only)
-  m_commandGroup = new QGroupBox("Speed Control");
-  QGridLayout * cmdLayout = new QGridLayout(m_commandGroup);
-
-  cmdLayout->addWidget(new QLabel("Target speed [rad/s]:"), 0, 0);
-  m_speedSpin = new QDoubleSpinBox();
-  m_speedSpin->setRange(-50.0, 50.0);
-  m_speedSpin->setDecimals(kDispDecimalsVelocity);
-  m_speedSpin->setSingleStep(0.1);
-  m_speedSpin->setValue(2.0);
-  connect(
-    m_speedSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
-    &MainWindow::onTargetSpeedChanged);
-  cmdLayout->addWidget(m_speedSpin, 0, 1);
-
-  // Set button removed; speed changes auto-apply
-
-  cmdLayout->addWidget(new QLabel("Rate [Hz]:"), 1, 0);
-  m_rateSpin = new QSpinBox();
-  m_rateSpin->setRange(1, 200);
-  m_rateSpin->setValue(100);
-  connect(
-    m_rateSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onRateChanged);
-  cmdLayout->addWidget(m_rateSpin, 1, 1);
-
-  // Duration removed
-
-  // Run is controlled by Enable/Stop only
-
-  m_mainLayout->addWidget(m_commandGroup);
-
-  // Position group
-  m_positionGroup = new QGroupBox("Position Control");
+  // Position group (Operation Control)
+  m_positionGroup = new QGroupBox("Operation Control");
   QGridLayout * posLayout = new QGridLayout(m_positionGroup);
 
   posLayout->addWidget(new QLabel("Target position [rad] :"), 0, 0);
@@ -175,9 +144,26 @@ void MainWindow::setupUI()
   m_kdSpin->setValue(1.0);
   posLayout->addWidget(m_kdSpin, 1, 3);
 
-  // Start button removed; enabling motor auto-starts according to run mode
-
   m_mainLayout->addWidget(m_positionGroup);
+
+  // Command group (Speed only)
+  m_commandGroup = new QGroupBox("Speed Control");
+  QGridLayout * cmdLayout = new QGridLayout(m_commandGroup);
+
+  cmdLayout->addWidget(new QLabel("Target speed [rad/s]:"), 0, 0);
+  m_speedSpin = new QDoubleSpinBox();
+  m_speedSpin->setRange(-50.0, 50.0);
+  m_speedSpin->setDecimals(kDispDecimalsVelocity);
+  m_speedSpin->setSingleStep(0.1);
+  m_speedSpin->setValue(2.0);
+  connect(
+    m_speedSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+    &MainWindow::onTargetSpeedChanged);
+  cmdLayout->addWidget(m_speedSpin, 0, 1);
+
+  // Run is controlled by Enable/Stop only
+
+  m_mainLayout->addWidget(m_commandGroup);
 
   // Limits group
   m_limitsGroup = new QGroupBox("Limits");
@@ -250,10 +236,10 @@ void MainWindow::setupUI()
 
   logMessage("Application started");
 
-  // Setup control+monitor timer
+  // Setup control+monitor timer (fixed interval)
   m_monitorTimer = new QTimer(this);
   connect(m_monitorTimer, &QTimer::timeout, this, &MainWindow::onTimerTick);
-  onRateChanged(m_rateSpin->value());
+  m_monitorTimer->setInterval(10);  // 10 ms (100 Hz)
 }
 
 void MainWindow::updateStatusFrom(const yy_cybergear::Status & st)
@@ -456,8 +442,6 @@ void MainWindow::onGetMcuIdClicked()
   }
 }
 
-// onSetSpeedClicked removed; using auto-apply on target change
-
 void MainWindow::onApplyLimitsClicked()
 {
   if (!m_cyberGear) return;
@@ -522,12 +506,6 @@ void MainWindow::onTargetPositionChanged(double value)
   } catch (const std::exception & e) {
     logMessage(QString("Auto apply position error: %1").arg(e.what()));
   }
-}
-
-void MainWindow::onRateChanged(int hz)
-{
-  int interval_ms = 1000 / std::max(1, hz);
-  m_monitorTimer->setInterval(interval_ms);
 }
 
 void MainWindow::updateConnectionStatus()
