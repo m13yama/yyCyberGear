@@ -168,6 +168,23 @@ void MainWindow::setupUI()
 
   m_mainLayout->addWidget(m_operationGroup);
 
+  // Position group (Position Control)
+  m_positionGroup = new QGroupBox("Position Control");
+  {
+    QGridLayout * posCtlLayout = new QGridLayout(m_positionGroup);
+    posCtlLayout->addWidget(new QLabel("Target position [rad] :"), 0, 0);
+    m_posRefSpin = new QDoubleSpinBox();
+    m_posRefSpin->setRange(-50.0, 50.0);
+    m_posRefSpin->setDecimals(kDispDecimalsAngle);
+    m_posRefSpin->setSingleStep(0.01);
+    m_posRefSpin->setValue(0.0);
+    connect(
+      m_posRefSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+      &MainWindow::onTargetPositionChanged);
+    posCtlLayout->addWidget(m_posRefSpin, 0, 1);
+  }
+  m_mainLayout->addWidget(m_positionGroup);
+
   // Command group (Speed only)
   m_commandGroup = new QGroupBox("Speed Control");
   QGridLayout * cmdLayout = new QGridLayout(m_commandGroup);
@@ -374,6 +391,11 @@ void MainWindow::onEnableMotorClicked()
           m_running = true;
           m_monitorTimer->start();
           logMessage("Run started (Operation)");
+        } else if (selectedMode == yy_cybergear::CyberGear::RunMode::Position) {
+          m_mode = ControlMode::Position;
+          m_running = true;
+          m_monitorTimer->start();
+          logMessage("Run started (Position)");
         } else if (selectedMode == yy_cybergear::CyberGear::RunMode::Speed) {
           m_mode = ControlMode::Speed;
           m_running = true;
@@ -522,6 +544,27 @@ void MainWindow::onTargetSpeedChanged(double value)
   }
 }
 
+void MainWindow::onTargetPositionChanged(double value)
+{
+  // If connected and not currently running the loop, apply the new target immediately
+  if (!m_cyberGear || !m_isConnected || m_running) return;
+  try {
+    auto modeResult = m_cyberGear->setRunMode(yy_cybergear::CyberGear::RunMode::Position);
+    if (!modeResult.ok()) {
+      logMessage("Failed to set position mode");
+      return;
+    }
+    auto r = m_cyberGear->setPositionReference(static_cast<float>(value));
+    if (r.ok() && r.value().has_value()) {
+      updateStatusFrom(*r.value());
+    } else if (!r.ok()) {
+      logMessage("Failed to set position");
+    }
+  } catch (const std::exception & e) {
+    logMessage(QString("Auto apply position ref error: %1").arg(e.what()));
+  }
+}
+
 void MainWindow::onTargetCurrentChanged(double value)
 {
   // If connected and not currently running the loop, apply the new target immediately
@@ -628,6 +671,7 @@ void MainWindow::updateConnectionStatus()
   m_motorIdSpin->setEnabled(!connected);
 
   m_operationGroup->setEnabled(connected);
+  m_positionGroup->setEnabled(connected);
   m_commandGroup->setEnabled(connected);
   m_controlGroup->setEnabled(connected);
   m_limitsGroup->setEnabled(connected);
@@ -673,6 +717,28 @@ void MainWindow::onTimerTick()
         m_monitorTimer->stop();
         (void)m_cyberGear->stopMotor();
         return;
+      }
+    } else if (m_mode == ControlMode::Position) {
+      auto r = m_cyberGear->setPositionReference(static_cast<float>(m_posRefSpin->value()));
+      if (!r.ok()) {
+        logMessage("Failed to set position reference. Stopping run.");
+        m_running = false;
+        m_mode = ControlMode::None;
+        m_monitorTimer->stop();
+        (void)m_cyberGear->stopMotor();
+        return;
+      }
+      if (r.ok() && r.value().has_value()) {
+        const auto & st = *r.value();
+        if (st.fault_bits != 0) {
+          logMessage("Fault detected during position control. Stopping.");
+          m_running = false;
+          m_mode = ControlMode::None;
+          m_monitorTimer->stop();
+          (void)m_cyberGear->stopMotor();
+          return;
+        }
+        updateStatusFrom(st);
       }
     } else if (m_mode == ControlMode::Speed) {
       auto r = m_cyberGear->setSpeedReference(static_cast<float>(m_speedSpin->value()));
@@ -746,6 +812,10 @@ void MainWindow::onApplyRunModeClicked()
       // If motor enabled and mode is Speed, we can resume speed loop automatically
       if (m_motorEnabled && modeVal == yy_cybergear::CyberGear::RunMode::Speed) {
         m_mode = ControlMode::Speed;
+        m_running = true;
+        m_monitorTimer->start();
+      } else if (m_motorEnabled && modeVal == yy_cybergear::CyberGear::RunMode::Position) {
+        m_mode = ControlMode::Position;
         m_running = true;
         m_monitorTimer->start();
       } else if (m_motorEnabled && modeVal == yy_cybergear::CyberGear::RunMode::Current) {

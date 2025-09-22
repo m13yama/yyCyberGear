@@ -42,6 +42,7 @@ private slots:
   void onOpPositionChanged(double value);
   void onOpVelChanged(double value);
   void onOpTorqueChanged(double value);
+  void onTargetPositionChanged(double value);
   void onTargetSpeedChanged(double value);
   void onTargetCurrentChanged(double value);
   void onApplyRunModeClicked();
@@ -97,6 +98,10 @@ private:
   QDoubleSpinBox * m_opVelSpin;  // feedforward velocity [rad/s]
   QDoubleSpinBox * m_opTauSpin;  // feedforward torque [Nm]
 
+  // Position control
+  QGroupBox * m_positionGroup;
+  QDoubleSpinBox * m_posRefSpin;  // target position [rad]
+
   // Speed control
   QGroupBox * m_commandGroup;
   QDoubleSpinBox * m_speedSpin;  // target speed [rad/s]
@@ -129,7 +134,7 @@ private:
   QTimer * m_monitorTimer;
   bool m_running = false;
 
-  enum class ControlMode { None, Operation, Speed, Current };
+  enum class ControlMode { None, Operation, Position, Speed, Current };
   ControlMode m_mode = ControlMode::None;
 
   // CyberGear instance
