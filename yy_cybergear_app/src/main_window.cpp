@@ -21,7 +21,7 @@ MainWindow::MainWindow(QWidget * parent)
 void MainWindow::setupUI()
 {
   setWindowTitle("CyberGear Speed Control");
-  setMinimumSize(800, 600);
+  setMinimumSize(800, 900);
 
   m_centralWidget = new QWidget;
   setCentralWidget(m_centralWidget);
