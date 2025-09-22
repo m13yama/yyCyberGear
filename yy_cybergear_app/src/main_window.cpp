@@ -1,9 +1,12 @@
 #include "yy_cybergear_app/main_window.hpp"
 
 #include <QtCore/QDateTime>
+#include <QtCore/QStringList>
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QMessageBox>
 #include <algorithm>
+
+#include "yy_cybergear/protocol_types.hpp"
 MainWindow::MainWindow(QWidget * parent)
 : QMainWindow(parent),
   m_centralWidget(nullptr),
@@ -158,11 +161,11 @@ void MainWindow::setupUI()
   m_statusGroup = new QGroupBox("Motor Status");
   QGridLayout * statusLayout = new QGridLayout(m_statusGroup);
 
-  statusLayout->addWidget(new QLabel("Position:"), 0, 0);
+  statusLayout->addWidget(new QLabel("Position [rad]:"), 0, 0);
   m_positionLabel = new QLabel("N/A");
   statusLayout->addWidget(m_positionLabel, 0, 1);
 
-  statusLayout->addWidget(new QLabel("Velocity:"), 0, 2);
+  statusLayout->addWidget(new QLabel("Velocity [rad/s]:"), 0, 2);
   m_velocityLabel = new QLabel("N/A");
   statusLayout->addWidget(m_velocityLabel, 0, 3);
 
@@ -170,11 +173,21 @@ void MainWindow::setupUI()
   m_currentLabel = new QLabel("N/A");
   statusLayout->addWidget(m_currentLabel, 1, 1);
 
-  statusLayout->addWidget(new QLabel("Voltage:"), 1, 2);
-  m_voltageLabel = new QLabel("N/A");
-  statusLayout->addWidget(m_voltageLabel, 1, 3);
+  statusLayout->addWidget(new QLabel("Temperature [°C]:"), 1, 2);
+  m_temperatureLabel = new QLabel("N/A");
+  statusLayout->addWidget(m_temperatureLabel, 1, 3);
 
-  // No separate monitoring controls; status updates run at command rate
+  statusLayout->addWidget(new QLabel("Motor CAN ID:"), 2, 0);
+  m_motorIdLabel = new QLabel("N/A");
+  statusLayout->addWidget(m_motorIdLabel, 2, 1);
+
+  statusLayout->addWidget(new QLabel("Mode:"), 2, 2);
+  m_modeLabel = new QLabel("N/A");
+  statusLayout->addWidget(m_modeLabel, 2, 3);
+
+  statusLayout->addWidget(new QLabel("Faults:"), 3, 0);
+  m_faultsLabel = new QLabel("N/A");
+  statusLayout->addWidget(m_faultsLabel, 3, 1, 1, 3);
 
   m_mainLayout->addWidget(m_statusGroup);
 
@@ -214,7 +227,8 @@ void MainWindow::onConnectClicked()
       QString("Connected to %1 (Host: %2, Motor: %3)").arg(interface).arg(hostId).arg(motorId));
 
   } catch (const std::exception & e) {
-    QMessageBox::critical(this, "Connection Error", QString("Failed to connect: %1").arg(e.what()));
+    QMessageBox::critical(
+      this, "Connection Error", QString("Failed to connect: %1").arg(e.what()));
     logMessage(QString("Connection failed: %1").arg(e.what()));
     m_isConnected = false;
   }
@@ -237,7 +251,10 @@ void MainWindow::onDisconnectClicked()
   m_positionLabel->setText("N/A");
   m_velocityLabel->setText("N/A");
   m_currentLabel->setText("N/A");
-  m_voltageLabel->setText("N/A");
+  m_temperatureLabel->setText("N/A");
+  m_motorIdLabel->setText("N/A");
+  m_modeLabel->setText("N/A");
+  m_faultsLabel->setText("N/A");
 }
 
 void MainWindow::onEnableMotorClicked()
@@ -379,6 +396,17 @@ void MainWindow::onTargetSpeedChanged(double value)
       m_positionLabel->setText(QString::number(st.angle_rad, 'f', 3));
       m_velocityLabel->setText(QString::number(st.vel_rad_s, 'f', 3));
       m_currentLabel->setText(QString::number(st.torque_Nm, 'f', 3));
+      m_temperatureLabel->setText(QString::number(st.temperature_c, 'f', 1));
+      m_motorIdLabel->setText(QString::number(st.motor_can_id));
+      m_modeLabel->setText(QString::fromStdString(yy_cybergear::mode_to_string(st.mode)));
+      const auto faults = yy_cybergear::fault_bits_to_string(st.fault_bits);
+      if (faults.empty()) {
+        m_faultsLabel->setText("None");
+      } else {
+        QStringList list;
+        for (const auto & f : faults) list << QString::fromStdString(f);
+        m_faultsLabel->setText(list.join(", "));
+      }
     } else if (!r.ok()) {
       logMessage("Failed to set speed");
     }
@@ -417,17 +445,16 @@ void MainWindow::updateStatusDisplay()
     m_positionLabel->setText("N/A");
     m_velocityLabel->setText("N/A");
     m_currentLabel->setText("N/A");
-    m_voltageLabel->setText("N/A");
+    m_temperatureLabel->setText("N/A");
+    m_motorIdLabel->setText("N/A");
+    m_modeLabel->setText("N/A");
+    m_faultsLabel->setText("N/A");
     return;
   }
 
   // During run, status labels are updated from the setSpeedReference reply in onTimerTick.
   // To guarantee one-at-a-time messaging, avoid extra reads here.
 }
-
-// onStartClicked removed; Enable/Stop control the run
-
-// onStopClicked removed; Enable/Stop control the run
 
 void MainWindow::onTimerTick()
 {
@@ -448,8 +475,17 @@ void MainWindow::onTimerTick()
       m_positionLabel->setText(QString::number(st.angle_rad, 'f', 3));
       m_velocityLabel->setText(QString::number(st.vel_rad_s, 'f', 3));
       m_currentLabel->setText(QString::number(st.torque_Nm, 'f', 3));
-      // Voltage not available in this reply; keep previous or show '-'
-      if (m_voltageLabel->text().isEmpty()) m_voltageLabel->setText("-");
+      m_temperatureLabel->setText(QString::number(st.temperature_c, 'f', 1));
+      m_motorIdLabel->setText(QString::number(st.motor_can_id));
+      m_modeLabel->setText(QString::fromStdString(yy_cybergear::mode_to_string(st.mode)));
+      const auto faults = yy_cybergear::fault_bits_to_string(st.fault_bits);
+      if (faults.empty()) {
+        m_faultsLabel->setText("None");
+      } else {
+        QStringList list;
+        for (const auto & f : faults) list << QString::fromStdString(f);
+        m_faultsLabel->setText(list.join(", "));
+      }
     }
 
     // Duration check

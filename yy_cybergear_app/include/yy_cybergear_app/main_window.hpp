@@ -88,7 +88,10 @@ private:
   QLabel * m_positionLabel;
   QLabel * m_velocityLabel;
   QLabel * m_currentLabel;
-  QLabel * m_voltageLabel;
+  QLabel * m_temperatureLabel;
+  QLabel * m_motorIdLabel;
+  QLabel * m_modeLabel;
+  QLabel * m_faultsLabel;
 
   // Log display
   QTextEdit * m_logEdit;
