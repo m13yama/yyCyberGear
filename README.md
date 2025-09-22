@@ -24,30 +24,35 @@
 
 ## 使い方
 
-- 各コマンドはワークスペース直下で実行します。
-- MCU ID の取得例:
+- SocketCANの準備
 
   ```bash
-  ./build/yy_cybergear/exmp_01_get_mcu_id --interface can0 --host-id 0x01 --motor-id 0x01
+  sudo ip link set can0 down
+  sudo ip link set can0 up type can bitrate 1000000
+  ip -details link show can0
   ```
 
-- ステータス監視:
+- サンプルプログラムの実行方法
 
-  ```bash
-  ./build/yy_cybergear/exmp_02_monitor_status --interface can0 --motor-id 1
-  ```
+  - MCU IDの取得:
 
-- GUI 起動:
+    ```bash
+    ./build/yy_cybergear/exmp_01_get_mcu_id --interface can0 --host-id 0x01 --motor-id 0x01
+    ```
 
-  ```bash
-  ./build/yy_cybergear_app/cybergear_gui_app
-  ```
+  - ステータス監視:
 
-## SocketCAN の準備
+    ```bash
+    ./build/yy_cybergear/exmp_02_monitor_status --interface can0 --motor-id 1
+    ```
 
-1. `sudo ip link set can0 down`
-2. `sudo ip link set can0 up type can bitrate 1000000`
-3. `ip -details link show can0`
+  - GUIアプリ:
+
+    ```bash
+    ./build/yy_cybergear_app/cybergear_gui_app
+    ```
+
+    ![screenshot of yy_cybergear_app](docs/images/yy_cybergear_app.png)
 
 ## テスト
 
