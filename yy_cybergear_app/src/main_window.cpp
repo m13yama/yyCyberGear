@@ -187,6 +187,23 @@ void MainWindow::setupUI()
 
   m_mainLayout->addWidget(m_commandGroup);
 
+  // Current Command group
+  m_currentGroup = new QGroupBox("Current Control");
+  QGridLayout * curLayout = new QGridLayout(m_currentGroup);
+
+  curLayout->addWidget(new QLabel("Target current Iq [A]:"), 0, 0);
+  m_iqSpin = new QDoubleSpinBox();
+  m_iqSpin->setRange(-40.0, 40.0);
+  m_iqSpin->setDecimals(kDispDecimalsTorque);
+  m_iqSpin->setSingleStep(0.1);
+  m_iqSpin->setValue(0.0);
+  connect(
+    m_iqSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+    &MainWindow::onTargetCurrentChanged);
+  curLayout->addWidget(m_iqSpin, 0, 1);
+
+  m_mainLayout->addWidget(m_currentGroup);
+
   // Limits group
   m_limitsGroup = new QGroupBox("Limits");
   QGridLayout * limitsLayout = new QGridLayout(m_limitsGroup);
@@ -362,6 +379,11 @@ void MainWindow::onEnableMotorClicked()
           m_running = true;
           m_monitorTimer->start();
           logMessage("Run started (Speed)");
+        } else if (selectedMode == yy_cybergear::CyberGear::RunMode::Current) {
+          m_mode = ControlMode::Current;
+          m_running = true;
+          m_monitorTimer->start();
+          logMessage("Run started (Current)");
         } else {
           m_mode = ControlMode::None;
           m_running = false;
@@ -500,6 +522,27 @@ void MainWindow::onTargetSpeedChanged(double value)
   }
 }
 
+void MainWindow::onTargetCurrentChanged(double value)
+{
+  // If connected and not currently running the loop, apply the new target immediately
+  if (!m_cyberGear || !m_isConnected || m_running) return;
+  try {
+    auto modeResult = m_cyberGear->setRunMode(yy_cybergear::CyberGear::RunMode::Current);
+    if (!modeResult.ok()) {
+      logMessage("Failed to set current mode");
+      return;
+    }
+    auto r = m_cyberGear->setIqReference(static_cast<float>(value));
+    if (r.ok() && r.value().has_value()) {
+      updateStatusFrom(*r.value());
+    } else if (!r.ok()) {
+      logMessage("Failed to set current");
+    }
+  } catch (const std::exception & e) {
+    logMessage(QString("Auto apply current error: %1").arg(e.what()));
+  }
+}
+
 void MainWindow::onOpPositionChanged(double value)
 {
   // Apply immediately if connected and not running (one-shot op command with zero torque)
@@ -589,6 +632,7 @@ void MainWindow::updateConnectionStatus()
   m_controlGroup->setEnabled(connected);
   m_limitsGroup->setEnabled(connected);
   m_runModeGroup->setEnabled(connected);
+  m_currentGroup->setEnabled(connected);
 }
 
 void MainWindow::updateStatusDisplay()
@@ -643,6 +687,28 @@ void MainWindow::onTimerTick()
       if (r.ok() && r.value().has_value()) {
         updateStatusFrom(*r.value());
       }
+    } else if (m_mode == ControlMode::Current) {
+      auto r = m_cyberGear->setIqReference(static_cast<float>(m_iqSpin->value()));
+      if (!r.ok()) {
+        logMessage("Failed to set current reference. Stopping run.");
+        m_running = false;
+        m_mode = ControlMode::None;
+        m_monitorTimer->stop();
+        (void)m_cyberGear->stopMotor();
+        return;
+      }
+      if (r.ok() && r.value().has_value()) {
+        const auto & st = *r.value();
+        if (st.fault_bits != 0) {
+          logMessage("Fault detected during current control. Stopping.");
+          m_running = false;
+          m_mode = ControlMode::None;
+          m_monitorTimer->stop();
+          (void)m_cyberGear->stopMotor();
+          return;
+        }
+        updateStatusFrom(st);
+      }
     }
   }
 
@@ -680,6 +746,10 @@ void MainWindow::onApplyRunModeClicked()
       // If motor enabled and mode is Speed, we can resume speed loop automatically
       if (m_motorEnabled && modeVal == yy_cybergear::CyberGear::RunMode::Speed) {
         m_mode = ControlMode::Speed;
+        m_running = true;
+        m_monitorTimer->start();
+      } else if (m_motorEnabled && modeVal == yy_cybergear::CyberGear::RunMode::Current) {
+        m_mode = ControlMode::Current;
         m_running = true;
         m_monitorTimer->start();
       }
