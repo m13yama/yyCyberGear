@@ -16,6 +16,8 @@
 #define YY_CYBERGEAR__PROTOCOL_TYPES_HPP_
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #include "yy_cybergear/error_code.hpp"
 #include "yy_cybergear/result.hpp"
@@ -55,6 +57,37 @@ struct FaultWarning
   uint32_t faults{0};
   uint32_t warnings{0};
 };
+
+// Human-readable helpers for decoding status fields
+inline std::string mode_to_string(uint8_t mode)
+{
+  switch (mode & 0x03u) {
+    case 0:
+      return "Reset";
+    case 1:
+      return "Calibration";
+    case 2:
+      return "Run";
+    default:
+      break;
+  }
+  return std::string("Unknown(") + std::to_string(static_cast<unsigned>(mode)) + ")";
+}
+
+// Fault bits (from EFF ID bits 21..16) mapped onto Status::fault_bits lower 6 bits
+// Returns a list of active fault labels. Empty vector means no faults.
+inline std::vector<std::string> fault_bits_to_string(uint8_t fault_bits)
+{
+  const uint8_t fb = static_cast<uint8_t>(fault_bits & 0x3Fu);
+  std::vector<std::string> out;
+  if (fb & (1u << 0)) out.emplace_back("Undervoltage fault");
+  if (fb & (1u << 1)) out.emplace_back("overcurrent");
+  if (fb & (1u << 2)) out.emplace_back("over temperature");
+  if (fb & (1u << 3)) out.emplace_back("Magnetic encoding failure");
+  if (fb & (1u << 4)) out.emplace_back("HALL encoding failure");
+  if (fb & (1u << 5)) out.emplace_back("not calibrated");
+  return out;
+}
 
 }  // namespace yy_cybergear
 
