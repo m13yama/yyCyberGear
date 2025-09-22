@@ -3,6 +3,7 @@
 
 #include <QtCore/QTimer>
 #include <QtWidgets/QCheckBox>
+#include <QtWidgets/QComboBox>
 #include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QGridLayout>
 #include <QtWidgets/QGroupBox>
@@ -40,6 +41,9 @@ private slots:
   void onRateChanged(int hz);
   void onTimerTick();
   void onTargetSpeedChanged(double value);
+  void onTargetPositionChanged(double value);
+  void onApplyRunModeClicked();
+  void onRefreshRunModeClicked();
 
 private:
   void setupUI();
@@ -77,10 +81,22 @@ private:
   QPushButton * m_getMcuIdBtn;
   QCheckBox * m_verboseCheck;
 
+  // Run mode switch
+  QGroupBox * m_runModeGroup;
+  QComboBox * m_runModeCombo;
+  QPushButton * m_applyRunModeBtn;
+  QPushButton * m_refreshRunModeBtn;
+
   // Speed control
   QGroupBox * m_commandGroup;
   QDoubleSpinBox * m_speedSpin;  // target speed [rad/s]
   QSpinBox * m_rateSpin;         // control/monitor rate [Hz]
+
+  // Position control
+  QGroupBox * m_positionGroup;
+  QDoubleSpinBox * m_positionSpin;  // target position [rad]
+  QDoubleSpinBox * m_kpSpin;        // position gain
+  QDoubleSpinBox * m_kdSpin;        // velocity gain
 
   // Limits
   QGroupBox * m_limitsGroup;
@@ -105,6 +121,9 @@ private:
   // Timer for control & monitoring
   QTimer * m_monitorTimer;
   bool m_running = false;
+
+  enum class ControlMode { None, Speed, Position };
+  ControlMode m_mode = ControlMode::None;
 
   // CyberGear instance
   std::unique_ptr<yy_cybergear::CyberGear> m_cyberGear;
