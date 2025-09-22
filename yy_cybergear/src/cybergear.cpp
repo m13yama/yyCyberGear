@@ -513,7 +513,10 @@ Result<Status> CyberGear::setSpeedKi(float v, int timeout_ms)
   return writeParamFloat(SPEED_KI, v, timeout_ms);
 }
 
-Result<float> CyberGear::getSpeedKi(int timeout_ms) { return readParamFloat(SPEED_KI, timeout_ms); }
+Result<float> CyberGear::getSpeedKi(int timeout_ms)
+{
+  return readParamFloat(SPEED_KI, timeout_ms);
+}
 
 // The following parameters are read-only.
 Result<float> CyberGear::getMechanicalPosition(int timeout_ms)
