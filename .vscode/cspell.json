@@ -13,6 +13,7 @@
     "exmp",
     "gtest",
     "htmlcov",
+    "libqt",
     "Mbps",
     "nosetests",
     "osrf",

@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #include <CLI/CLI.hpp>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <iomanip>
 #include <iostream>
@@ -30,23 +32,27 @@ namespace
 {
 std::atomic<bool> g_running{true};
 void handle_sigint(int) { g_running = false; }
+
 }  // namespace
 
 int main(int argc, char ** argv)
 {
-  CLI::App app{"CyberGear: constant speed control (simple)"};
+  CLI::App app{"CyberGear: sine-wave operation control using type-1 op commands"};
 
   std::string ifname{"can0"};
   std::string host_id_str{"0x01"};
   std::string motor_id_str{"0x01"};
   bool verbose = false;
 
-  // Control parameters
-  double speed_rad_s = 2.0;  // desired constant speed [rad/s] (can be negative)
-  double limit_tau = 6.0;    // torque limit [Nm]
-  double limit_spd = 50.0;   // speed limit [rad/s]
-  int rate_hz = 100;         // command update rate [Hz]
-  double duration = 0.0;     // 0 => run until Ctrl+C
+  // Sine parameters
+  double amp_rad = 0.5;     // amplitude [rad]
+  double freq_hz = 0.5;     // frequency [Hz]
+  double kp = 50.0;         // position gain
+  double kd = 1.0;          // velocity gain
+  double target_vel = 0.0;  // additional target velocity [rad/s]
+  double tau_offset = 0.0;  // offset torque [Nm]
+  // Loop timing (fixed internal rate)
+  constexpr int kRateHz = 100;
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -54,20 +60,22 @@ int main(int argc, char ** argv)
     ->capture_default_str();
   app.add_option("-M,--motor-id", motor_id_str, "Motor ID (decimal or 0x-prefixed hex)")
     ->capture_default_str();
-  app.add_option("-s,--speed", speed_rad_s, "Target speed [rad/s] (negative allowed)")
-    ->capture_default_str();
-  app.add_option("--limit-tau", limit_tau, "Torque limit [Nm]")
+  app.add_option("-A,--amp", amp_rad, "Sine amplitude [rad]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
-  app.add_option("--limit-spd", limit_spd, "Speed limit [rad/s]")
+  app.add_option("-f,--freq", freq_hz, "Sine frequency [Hz]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
-  app.add_option("-r,--rate", rate_hz, "Command rate [Hz]")
-    ->check(CLI::PositiveNumber)
-    ->capture_default_str();
-  app.add_option("-d,--duration", duration, "Run duration [s] (0 = infinite)")
+  app.add_option("--kp", kp, "Position gain (0..500)")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
+  app.add_option("--kd", kd, "Velocity gain (0..5)")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  app.add_option("--target-vel", target_vel, "Additional target velocity [rad/s]")
+    ->capture_default_str();
+  app.add_option("--tau-offset", tau_offset, "Offset torque [Nm]")->capture_default_str();
+  // Removed: rate and duration options (fixed internal rate, run until Ctrl+C)
   app.add_flag("-v,--verbose", verbose, "Verbose CAN frame prints");
 
   try {
@@ -97,30 +105,50 @@ int main(int argc, char ** argv)
     CyberGear dev(ifname, host, motor, verbose);
     dev.open();
 
-    // Basic safe setup: clear faults, speed mode, limits, enable motor
+    // Basic safe setup: clear faults, set operation mode, enable motor
     (void)dev.clearFaults();
-    (void)dev.setRunMode(CyberGear::RunMode::Speed).ok();
-    (void)dev.setTorqueLimit(static_cast<float>(limit_tau)).ok();
-    (void)dev.setSpeedLimit(static_cast<float>(limit_spd)).ok();
+    (void)dev.setRunMode(CyberGear::RunMode::Operation).ok();
     (void)dev.enableMotor();
 
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
-    const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / rate_hz)};
+    const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / kRateHz)};
 
-    std::cout << "Constant speed control on motor 0x" << std::uppercase << std::hex << std::setw(2)
+    std::cout << "Sine operation control on motor 0x" << std::uppercase << std::hex << std::setw(2)
               << std::setfill('0') << static_cast<unsigned>(motor) << std::dec
-              << ": speed=" << speed_rad_s << " rad/s, limit_tau=" << limit_tau
-              << " Nm, limit_spd=" << limit_spd << " rad/s, rate=" << rate_hz << " Hz" << '\n';
+              << ": amp=" << amp_rad << " rad, freq=" << freq_hz << " Hz, kp=" << kp
+              << ", kd=" << kd << ", target_vel=" << target_vel << " rad/s"
+              << ", tau_offset=" << tau_offset << " Nm" << '\n';
 
     while (g_running) {
       const auto start = clock::now();
       const auto deadline = start + dt_ns;
       const double t = std::chrono::duration<double>(start - t0).count();
-      if (duration > 0.0 && t >= duration) break;
 
+      // Compute reference
+      // Use local constant for pi to avoid non-standard M_PI macro dependency
+      constexpr double kPi = 3.14159265358979323846;
+      const double omega = 2.0 * kPi * freq_hz;
+      const double pos = amp_rad * std::sin(omega * t);
+      const double vel = omega * amp_rad * std::cos(omega * t) + target_vel;
+
+      yy_cybergear::OpCommand cmd{};
+      cmd.pos_rad = static_cast<float>(pos);
+      cmd.vel_rad_s = static_cast<float>(vel);
+      cmd.kp = static_cast<float>(kp);
+      cmd.kd = static_cast<float>(kd);
+      cmd.torque_Nm = static_cast<float>(tau_offset);
+
+      // Send op command and print returned status (type-2)
       {
-        auto r = dev.setSpeedReference(static_cast<float>(speed_rad_s));
+        const auto now = clock::now();
+        const auto remaining = deadline - now;
+        int timeout_ms = std::max(
+          0, static_cast<int>(
+               std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count()));
+        if (timeout_ms <= 0) timeout_ms = 1;
+
+        auto r = dev.sendOperationCommand(cmd, timeout_ms);
         if (r.ok()) {
           const auto & st = *r.value();
           const auto mode_str = yy_cybergear::mode_to_string(st.mode);
@@ -145,7 +173,7 @@ int main(int argc, char ** argv)
             return EXIT_FAILURE;
           }
         } else {
-          std::cerr << "Failed to set speed reference: " << yy_cybergear::to_string(*r.error())
+          std::cerr << "sendOperationCommand failed: " << yy_cybergear::to_string(*r.error())
                     << ". Stopping motor and exiting." << '\n';
           (void)dev.stopMotor();
           return EXIT_FAILURE;
