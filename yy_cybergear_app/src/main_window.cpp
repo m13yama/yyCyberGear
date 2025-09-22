@@ -116,13 +116,7 @@ void MainWindow::setupUI()
     m_rateSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::onRateChanged);
   cmdLayout->addWidget(m_rateSpin, 1, 1);
 
-  cmdLayout->addWidget(new QLabel("Duration [s] (0=∞):"), 1, 2);
-  m_durationSpin = new QDoubleSpinBox();
-  m_durationSpin->setRange(0.0, 3600.0);
-  m_durationSpin->setDecimals(1);
-  m_durationSpin->setSingleStep(0.5);
-  m_durationSpin->setValue(0.0);
-  cmdLayout->addWidget(m_durationSpin, 1, 3);
+  // Duration removed
 
   // Run is controlled by Enable/Stop only
 
@@ -269,8 +263,6 @@ void MainWindow::onEnableMotorClicked()
       // Immediately start the control loop (enable -> motor starts)
       try {
         (void)m_cyberGear->setRunMode(yy_cybergear::CyberGear::RunMode::Speed);
-        m_targetDurationSec = m_durationSpin->value();
-        m_elapsed.restart();
         m_running = true;
         m_monitorTimer->start();
         logMessage("Run started (auto-start on enable)");
@@ -451,9 +443,6 @@ void MainWindow::updateStatusDisplay()
     m_faultsLabel->setText("N/A");
     return;
   }
-
-  // During run, status labels are updated from the setSpeedReference reply in onTimerTick.
-  // To guarantee one-at-a-time messaging, avoid extra reads here.
 }
 
 void MainWindow::onTimerTick()
@@ -485,16 +474,6 @@ void MainWindow::onTimerTick()
         QStringList list;
         for (const auto & f : faults) list << QString::fromStdString(f);
         m_faultsLabel->setText(list.join(", "));
-      }
-    }
-
-    // Duration check
-    if (m_targetDurationSec > 0.0) {
-      const double t = m_elapsed.elapsed() / 1000.0;  // ms -> s
-      if (t >= m_targetDurationSec) {
-        logMessage("Duration reached. Stopping run.");
-        m_running = false;
-        m_monitorTimer->stop();
       }
     }
   }

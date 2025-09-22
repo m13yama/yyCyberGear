@@ -1,7 +1,6 @@
 #ifndef YY_CYBERGEAR_APP__MAIN_WINDOW_HPP_
 #define YY_CYBERGEAR_APP__MAIN_WINDOW_HPP_
 
-#include <QtCore/QElapsedTimer>
 #include <QtCore/QTimer>
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QDoubleSpinBox>
@@ -72,9 +71,7 @@ private:
   // Speed control
   QGroupBox * m_commandGroup;
   QDoubleSpinBox * m_speedSpin;  // target speed [rad/s]
-  // Removed Set button; speed changes auto-apply
-  QSpinBox * m_rateSpin;            // control/monitor rate [Hz]
-  QDoubleSpinBox * m_durationSpin;  // run duration [s] (0 = infinite)
+  QSpinBox * m_rateSpin;         // control/monitor rate [Hz]
 
   // Limits
   QGroupBox * m_limitsGroup;
@@ -98,9 +95,7 @@ private:
 
   // Timer for control & monitoring
   QTimer * m_monitorTimer;
-  QElapsedTimer m_elapsed;
   bool m_running = false;
-  double m_targetDurationSec = 0.0;
 
   // CyberGear instance
   std::unique_ptr<yy_cybergear::CyberGear> m_cyberGear;
