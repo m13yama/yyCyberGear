@@ -18,6 +18,7 @@
 #include <QtWidgets/QWidget>
 
 #include "yy_cybergear/cybergear.hpp"
+#include "yy_cybergear/protocol_types.hpp"
 
 class MainWindow : public QMainWindow
 {
@@ -45,6 +46,14 @@ private:
   void updateConnectionStatus();
   void updateStatusDisplay();
   void logMessage(const QString & message);
+  void updateStatusFrom(const yy_cybergear::Status & st);
+  void resetStatusLabels();
+
+  // Fixed display precision (digits after decimal point)
+  static constexpr int kDispDecimalsAngle = 3;
+  static constexpr int kDispDecimalsVelocity = 3;
+  static constexpr int kDispDecimalsTorque = 3;
+  static constexpr int kDispDecimalsTemperature = 1;
 
   // UI Elements
   QWidget * m_centralWidget;
