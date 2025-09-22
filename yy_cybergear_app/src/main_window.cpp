@@ -91,7 +91,7 @@ void MainWindow::setupUI()
   m_mainLayout->addWidget(m_controlGroup);
 
   // Run Mode group
-  m_runModeGroup = new QGroupBox("operationモード");
+  m_runModeGroup = new QGroupBox("Control Mode");
   QGridLayout * modeLayout = new QGridLayout(m_runModeGroup);
   modeLayout->addWidget(new QLabel("Mode:"), 0, 0);
   m_runModeCombo = new QComboBox();
@@ -114,29 +114,40 @@ void MainWindow::setupUI()
   m_mainLayout->addWidget(m_runModeGroup);
 
   // Position group (Operation Control)
-  m_positionGroup = new QGroupBox("Operation Control");
-  QGridLayout * posLayout = new QGridLayout(m_positionGroup);
+  m_operationGroup = new QGroupBox("Operation Control");
+  QGridLayout * posLayout = new QGridLayout(m_operationGroup);
 
   posLayout->addWidget(new QLabel("Target position [rad] :"), 0, 0);
-  m_positionSpin = new QDoubleSpinBox();
-  m_positionSpin->setRange(-50.0, 50.0);
-  m_positionSpin->setDecimals(kDispDecimalsAngle);
-  m_positionSpin->setSingleStep(0.01);
-  m_positionSpin->setValue(0.0);
+  m_opPosSpin = new QDoubleSpinBox();
+  m_opPosSpin->setRange(-50.0, 50.0);
+  m_opPosSpin->setDecimals(kDispDecimalsAngle);
+  m_opPosSpin->setSingleStep(0.01);
+  m_opPosSpin->setValue(0.0);
   connect(
-    m_positionSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
-    &MainWindow::onTargetPositionChanged);
-  posLayout->addWidget(m_positionSpin, 0, 1);
+    m_opPosSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+    &MainWindow::onOpPositionChanged);
+  posLayout->addWidget(m_opPosSpin, 0, 1);
 
-  posLayout->addWidget(new QLabel("Kp:"), 1, 0);
+  posLayout->addWidget(new QLabel("Position Gain [Nm/rad]:"), 0, 2);
   m_kpSpin = new QDoubleSpinBox();
   m_kpSpin->setRange(0.0, 500.0);
   m_kpSpin->setDecimals(2);
   m_kpSpin->setSingleStep(1.0);
   m_kpSpin->setValue(50.0);
-  posLayout->addWidget(m_kpSpin, 1, 1);
+  posLayout->addWidget(m_kpSpin, 0, 3);
 
-  posLayout->addWidget(new QLabel("Kd:"), 1, 2);
+  posLayout->addWidget(new QLabel("Target vel [rad/s] :"), 1, 0);
+  m_opVelSpin = new QDoubleSpinBox();
+  m_opVelSpin->setRange(-50.0, 50.0);
+  m_opVelSpin->setDecimals(kDispDecimalsVelocity);
+  m_opVelSpin->setSingleStep(0.01);
+  m_opVelSpin->setValue(0.0);
+  connect(
+    m_opVelSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+    &MainWindow::onOpVelChanged);
+  posLayout->addWidget(m_opVelSpin, 1, 1);
+
+  posLayout->addWidget(new QLabel("Velocity Gain [Nm/(rad/s)]:"), 1, 2);
   m_kdSpin = new QDoubleSpinBox();
   m_kdSpin->setRange(0.0, 5.0);
   m_kdSpin->setDecimals(2);
@@ -144,7 +155,18 @@ void MainWindow::setupUI()
   m_kdSpin->setValue(1.0);
   posLayout->addWidget(m_kdSpin, 1, 3);
 
-  m_mainLayout->addWidget(m_positionGroup);
+  posLayout->addWidget(new QLabel("Offset tau [Nm] :"), 2, 0);
+  m_opTauSpin = new QDoubleSpinBox();
+  m_opTauSpin->setRange(-30.0, 30.0);
+  m_opTauSpin->setDecimals(kDispDecimalsTorque);
+  m_opTauSpin->setSingleStep(0.01);
+  m_opTauSpin->setValue(0.0);
+  connect(
+    m_opTauSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+    &MainWindow::onOpTorqueChanged);
+  posLayout->addWidget(m_opTauSpin, 2, 1);
+
+  m_mainLayout->addWidget(m_operationGroup);
 
   // Command group (Speed only)
   m_commandGroup = new QGroupBox("Speed Control");
@@ -330,16 +352,16 @@ void MainWindow::onEnableMotorClicked()
         const auto selectedMode =
           static_cast<yy_cybergear::CyberGear::RunMode>(m_runModeCombo->currentData().toInt());
         (void)m_cyberGear->setRunMode(selectedMode);
-        if (selectedMode == yy_cybergear::CyberGear::RunMode::Speed) {
+        if (selectedMode == yy_cybergear::CyberGear::RunMode::Operation) {
+          m_mode = ControlMode::Operation;
+          m_running = true;
+          m_monitorTimer->start();
+          logMessage("Run started (Operation)");
+        } else if (selectedMode == yy_cybergear::CyberGear::RunMode::Speed) {
           m_mode = ControlMode::Speed;
           m_running = true;
           m_monitorTimer->start();
           logMessage("Run started (Speed)");
-        } else if (selectedMode == yy_cybergear::CyberGear::RunMode::Operation) {
-          m_mode = ControlMode::Position;
-          m_running = true;
-          m_monitorTimer->start();
-          logMessage("Run started (Position via Operation)");
         } else {
           m_mode = ControlMode::None;
           m_running = false;
@@ -355,8 +377,6 @@ void MainWindow::onEnableMotorClicked()
     logMessage(QString("Enable motor error: %1").arg(e.what()));
   }
 }
-
-// onRateChanged is defined earlier
 
 void MainWindow::onStopMotorClicked()
 {
@@ -480,7 +500,7 @@ void MainWindow::onTargetSpeedChanged(double value)
   }
 }
 
-void MainWindow::onTargetPositionChanged(double value)
+void MainWindow::onOpPositionChanged(double value)
 {
   // Apply immediately if connected and not running (one-shot op command with zero torque)
   if (!m_cyberGear || !m_isConnected || m_running) return;
@@ -492,11 +512,10 @@ void MainWindow::onTargetPositionChanged(double value)
     }
     yy_cybergear::OpCommand cmd{};
     cmd.pos_rad = static_cast<float>(value);
-    // zero velocity feedforward, use selected gains, zero torque
-    cmd.vel_rad_s = 0.0f;
+    cmd.vel_rad_s = static_cast<float>(m_opVelSpin ? m_opVelSpin->value() : 0.0);
     cmd.kp = static_cast<float>(m_kpSpin->value());
     cmd.kd = static_cast<float>(m_kdSpin->value());
-    cmd.torque_Nm = 0.0f;
+    cmd.torque_Nm = static_cast<float>(m_opTauSpin ? m_opTauSpin->value() : 0.0);
     auto r = m_cyberGear->sendOperationCommand(cmd, 50);
     if (r.ok() && r.value().has_value()) {
       updateStatusFrom(*r.value());
@@ -505,6 +524,50 @@ void MainWindow::onTargetPositionChanged(double value)
     }
   } catch (const std::exception & e) {
     logMessage(QString("Auto apply position error: %1").arg(e.what()));
+  }
+}
+
+void MainWindow::onOpVelChanged(double)
+{
+  // Apply immediately if connected and not running
+  if (!m_cyberGear || !m_isConnected || m_running) return;
+  try {
+    auto modeResult = m_cyberGear->setRunMode(yy_cybergear::CyberGear::RunMode::Operation);
+    if (!modeResult.ok()) {
+      logMessage("Failed to set operation mode");
+      return;
+    }
+    yy_cybergear::OpCommand cmd{};
+    cmd.pos_rad = static_cast<float>(m_opPosSpin->value());
+    cmd.vel_rad_s = static_cast<float>(m_opVelSpin->value());
+    cmd.kp = static_cast<float>(m_kpSpin->value());
+    cmd.kd = static_cast<float>(m_kdSpin->value());
+    cmd.torque_Nm = static_cast<float>(m_opTauSpin->value());
+    (void)m_cyberGear->sendOperationCommand(cmd, 50);
+  } catch (const std::exception & e) {
+    logMessage(QString("Auto apply op vel error: %1").arg(e.what()));
+  }
+}
+
+void MainWindow::onOpTorqueChanged(double)
+{
+  // Apply immediately if connected and not running
+  if (!m_cyberGear || !m_isConnected || m_running) return;
+  try {
+    auto modeResult = m_cyberGear->setRunMode(yy_cybergear::CyberGear::RunMode::Operation);
+    if (!modeResult.ok()) {
+      logMessage("Failed to set operation mode");
+      return;
+    }
+    yy_cybergear::OpCommand cmd{};
+    cmd.pos_rad = static_cast<float>(m_opPosSpin->value());
+    cmd.vel_rad_s = static_cast<float>(m_opVelSpin->value());
+    cmd.kp = static_cast<float>(m_kpSpin->value());
+    cmd.kd = static_cast<float>(m_kdSpin->value());
+    cmd.torque_Nm = static_cast<float>(m_opTauSpin->value());
+    (void)m_cyberGear->sendOperationCommand(cmd, 50);
+  } catch (const std::exception & e) {
+    logMessage(QString("Auto apply op torque error: %1").arg(e.what()));
   }
 }
 
@@ -521,9 +584,9 @@ void MainWindow::updateConnectionStatus()
   m_hostIdSpin->setEnabled(!connected);
   m_motorIdSpin->setEnabled(!connected);
 
-  m_controlGroup->setEnabled(connected);
+  m_operationGroup->setEnabled(connected);
   m_commandGroup->setEnabled(connected);
-  m_positionGroup->setEnabled(connected);
+  m_controlGroup->setEnabled(connected);
   m_limitsGroup->setEnabled(connected);
   m_runModeGroup->setEnabled(connected);
 }
@@ -540,31 +603,18 @@ void MainWindow::onTimerTick()
 {
   // Control loop tick + status update
   if (m_running && m_cyberGear && m_isConnected) {
-    if (m_mode == ControlMode::Speed) {
-      auto r = m_cyberGear->setSpeedReference(static_cast<float>(m_speedSpin->value()));
-      if (!r.ok()) {
-        logMessage("Failed to set speed reference. Stopping run.");
-        m_running = false;
-        m_mode = ControlMode::None;
-        m_monitorTimer->stop();
-        (void)m_cyberGear->stopMotor();
-        return;
-      }
-      if (r.ok() && r.value().has_value()) {
-        updateStatusFrom(*r.value());
-      }
-    } else if (m_mode == ControlMode::Position) {
+    if (m_mode == ControlMode::Operation) {
       yy_cybergear::OpCommand cmd{};
-      cmd.pos_rad = static_cast<float>(m_positionSpin->value());
-      cmd.vel_rad_s = 0.0f;  // optional feedforward could be added
+      cmd.pos_rad = static_cast<float>(m_opPosSpin->value());
+      cmd.vel_rad_s = static_cast<float>(m_opVelSpin ? m_opVelSpin->value() : 0.0);
       cmd.kp = static_cast<float>(m_kpSpin->value());
       cmd.kd = static_cast<float>(m_kdSpin->value());
-      cmd.torque_Nm = 0.0f;
+      cmd.torque_Nm = static_cast<float>(m_opTauSpin ? m_opTauSpin->value() : 0.0);
       auto r = m_cyberGear->sendOperationCommand(cmd, std::max(1, m_monitorTimer->interval() - 1));
       if (r.ok() && r.value().has_value()) {
         const auto & st = *r.value();
         if (st.fault_bits != 0) {
-          logMessage("Fault detected during position control. Stopping.");
+          logMessage("Fault detected during operation control. Stopping.");
           m_running = false;
           m_mode = ControlMode::None;
           m_monitorTimer->stop();
@@ -579,6 +629,19 @@ void MainWindow::onTimerTick()
         m_monitorTimer->stop();
         (void)m_cyberGear->stopMotor();
         return;
+      }
+    } else if (m_mode == ControlMode::Speed) {
+      auto r = m_cyberGear->setSpeedReference(static_cast<float>(m_speedSpin->value()));
+      if (!r.ok()) {
+        logMessage("Failed to set speed reference. Stopping run.");
+        m_running = false;
+        m_mode = ControlMode::None;
+        m_monitorTimer->stop();
+        (void)m_cyberGear->stopMotor();
+        return;
+      }
+      if (r.ok() && r.value().has_value()) {
+        updateStatusFrom(*r.value());
       }
     }
   }

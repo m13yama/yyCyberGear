@@ -39,8 +39,10 @@ private slots:
   void onGetMcuIdClicked();
   void onApplyLimitsClicked();
   void onTimerTick();
+  void onOpPositionChanged(double value);
+  void onOpVelChanged(double value);
+  void onOpTorqueChanged(double value);
   void onTargetSpeedChanged(double value);
-  void onTargetPositionChanged(double value);
   void onApplyRunModeClicked();
   void onRefreshRunModeClicked();
 
@@ -86,15 +88,17 @@ private:
   QPushButton * m_applyRunModeBtn;
   QPushButton * m_refreshRunModeBtn;
 
+  // Operation control
+  QGroupBox * m_operationGroup;
+  QDoubleSpinBox * m_opPosSpin;  // target position [rad]
+  QDoubleSpinBox * m_kpSpin;     // position gain
+  QDoubleSpinBox * m_kdSpin;     // velocity gain
+  QDoubleSpinBox * m_opVelSpin;  // feedforward velocity [rad/s]
+  QDoubleSpinBox * m_opTauSpin;  // feedforward torque [Nm]
+
   // Speed control
   QGroupBox * m_commandGroup;
   QDoubleSpinBox * m_speedSpin;  // target speed [rad/s]
-
-  // Position control
-  QGroupBox * m_positionGroup;
-  QDoubleSpinBox * m_positionSpin;  // target position [rad]
-  QDoubleSpinBox * m_kpSpin;        // position gain
-  QDoubleSpinBox * m_kdSpin;        // velocity gain
 
   // Limits
   QGroupBox * m_limitsGroup;
@@ -120,7 +124,7 @@ private:
   QTimer * m_monitorTimer;
   bool m_running = false;
 
-  enum class ControlMode { None, Speed, Position };
+  enum class ControlMode { None, Operation, Speed };
   ControlMode m_mode = ControlMode::None;
 
   // CyberGear instance
