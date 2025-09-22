@@ -23,13 +23,13 @@
 #include <iostream>
 #include <sstream>
 
-#include "yy_cybergear/data_frame_codec.hpp"
+#include "yy_cybergear/data_frame_handler.hpp"
 #include "yy_cybergear/parameter_indexes.hpp"
 
 namespace yy_cybergear
 {
-// Short alias for data frame codec namespace
-namespace dfc = data_frame_codec;
+// Short alias for data frame handler namespace
+namespace dfh = data_frame_handler;
 
 namespace
 {
@@ -73,7 +73,7 @@ void CyberGear::close() noexcept { can_.close(); }
 void CyberGear::debugPrintFrame(const struct can_frame & f) const
 {
   if (!verbose_) return;
-  const bool eff = data_frame_codec::isExtended(f.can_id);
+  const bool eff = data_frame_handler::isExtended(f.can_id);
   const uint32_t id = eff ? (f.can_id & CAN_EFF_MASK) : (f.can_id & CAN_SFF_MASK);
   std::ostringstream os;
   os << "can " << (eff ? "EFF" : "SFF") << " id=0x" << std::uppercase << std::hex
@@ -93,7 +93,7 @@ Result<std::array<uint8_t, kUidLen>> CyberGear::getMcuId(int timeout_ms)
   struct can_frame tx
   {
   };
-  dfc::buildGetDeviceIdReq(host_id_, motor_id_, tx);
+  dfh::buildGetDeviceIdReq(host_id_, motor_id_, tx);
 
   if (verbose_) {
     std::cout << "Sending request: if=" << ifname_ << " host_id=0x" << hex2(host_id_)
@@ -109,7 +109,7 @@ Result<std::array<uint8_t, kUidLen>> CyberGear::getMcuId(int timeout_ms)
     };
     if (!can_.recv(rx, 100)) continue;
     std::array<uint8_t, kUidLen> uid{};
-    if (dfc::parseDeviceIdResp(rx, motor_id_, uid)) {
+    if (dfh::parseDeviceIdResp(rx, motor_id_, uid)) {
       if (verbose_) debugPrintFrame(rx);
       return Result<std::array<uint8_t, kUidLen>>::success(uid);
     }
@@ -123,7 +123,7 @@ Result<Status> CyberGear::sendOperationCommand(const OpCommand & cmd, int timeou
   struct can_frame tx
   {
   };
-  dfc::buildOpCtrlReq(motor_id_, cmd, tx);
+  dfh::buildOpCtrlReq(motor_id_, cmd, tx);
   if (verbose_) debugPrintFrame(tx);
   can_.send(tx);
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
@@ -133,7 +133,7 @@ Result<Status> CyberGear::sendOperationCommand(const OpCommand & cmd, int timeou
     };
     if (!can_.recv(rx, 50)) continue;
     Status st{};
-    if (dfc::parseStatus(rx, st)) {
+    if (dfh::parseStatus(rx, st)) {
       if (verbose_) debugPrintFrame(rx);
       if (st.motor_can_id == motor_id_) return Result<Status>::success(st);
     }
@@ -147,7 +147,7 @@ Result<Status> CyberGear::clearFaults(int timeout_ms)
   struct can_frame tx
   {
   };
-  dfc::buildClearFaultsReq(host_id_, motor_id_, tx);
+  dfh::buildClearFaultsReq(host_id_, motor_id_, tx);
   if (verbose_) debugPrintFrame(tx);
   can_.send(tx);
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
@@ -157,7 +157,7 @@ Result<Status> CyberGear::clearFaults(int timeout_ms)
     };
     if (!can_.recv(rx, 100)) continue;
     Status st{};
-    if (dfc::parseStatus(rx, st)) {
+    if (dfh::parseStatus(rx, st)) {
       if (verbose_) debugPrintFrame(rx);
       if (st.motor_can_id == motor_id_) return Result<Status>::success(st);
     }
@@ -171,7 +171,7 @@ Result<Status> CyberGear::stopMotor(int timeout_ms)
   struct can_frame tx
   {
   };
-  dfc::buildStopReq(host_id_, motor_id_, tx);
+  dfh::buildStopReq(host_id_, motor_id_, tx);
   if (verbose_) debugPrintFrame(tx);
   can_.send(tx);
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
@@ -181,7 +181,7 @@ Result<Status> CyberGear::stopMotor(int timeout_ms)
     };
     if (!can_.recv(rx, 100)) continue;
     Status st{};
-    if (dfc::parseStatus(rx, st)) {
+    if (dfh::parseStatus(rx, st)) {
       if (verbose_) debugPrintFrame(rx);
       if (st.motor_can_id == motor_id_) return Result<Status>::success(st);
     }
@@ -195,7 +195,7 @@ Result<Status> CyberGear::enableMotor(int timeout_ms)
   struct can_frame tx
   {
   };
-  dfc::buildEnableReq(host_id_, motor_id_, tx);
+  dfh::buildEnableReq(host_id_, motor_id_, tx);
   if (verbose_) debugPrintFrame(tx);
   can_.send(tx);
 
@@ -207,7 +207,7 @@ Result<Status> CyberGear::enableMotor(int timeout_ms)
     };
     if (!can_.recv(rx, 100)) continue;
     Status st{};
-    if (dfc::parseStatus(rx, st)) {
+    if (dfh::parseStatus(rx, st)) {
       if (verbose_) debugPrintFrame(rx);
       if (st.motor_can_id == motor_id_) return Result<Status>::success(st);
     }
@@ -221,7 +221,7 @@ Result<Status> CyberGear::setMechanicalZero(int timeout_ms)
   struct can_frame tx
   {
   };
-  dfc::buildSetMechanicalZeroReq(host_id_, motor_id_, tx);
+  dfh::buildSetMechanicalZeroReq(host_id_, motor_id_, tx);
   if (verbose_) debugPrintFrame(tx);
   can_.send(tx);
 
@@ -232,7 +232,7 @@ Result<Status> CyberGear::setMechanicalZero(int timeout_ms)
     };
     if (!can_.recv(rx, 100)) continue;
     Status st{};
-    if (dfc::parseStatus(rx, st)) {
+    if (dfh::parseStatus(rx, st)) {
       if (verbose_) debugPrintFrame(rx);
       return Result<Status>::success(st);
     }
@@ -247,7 +247,7 @@ Result<std::array<uint8_t, kUidLen>> CyberGear::changeMotorId(
   struct can_frame tx
   {
   };
-  dfc::buildChangeMotorIdReq(host_id_, motor_id_, new_motor_id, tx);
+  dfh::buildChangeMotorIdReq(host_id_, motor_id_, new_motor_id, tx);
   if (verbose_) debugPrintFrame(tx);
   can_.send(tx);
   // Wait for communication type 0 response that includes the new motor ID.
@@ -258,7 +258,7 @@ Result<std::array<uint8_t, kUidLen>> CyberGear::changeMotorId(
     };
     if (!can_.recv(rx, 100)) continue;
     std::array<uint8_t, kUidLen> uid{};
-    if (dfc::parseDeviceIdResp(rx, new_motor_id, uid)) {
+    if (dfh::parseDeviceIdResp(rx, new_motor_id, uid)) {
       if (verbose_) debugPrintFrame(rx);
       motor_id_ = new_motor_id;
       return Result<std::array<uint8_t, kUidLen>>::success(uid);
@@ -273,7 +273,7 @@ Result<FaultWarning> CyberGear::requestFaultWarning(int timeout_ms)
   struct can_frame tx
   {
   };
-  dfc::buildFaultWarningReq(host_id_, motor_id_, tx);
+  dfh::buildFaultWarningReq(host_id_, motor_id_, tx);
   if (verbose_) debugPrintFrame(tx);
   can_.send(tx);
 
@@ -284,7 +284,7 @@ Result<FaultWarning> CyberGear::requestFaultWarning(int timeout_ms)
     };
     if (!can_.recv(rx, 100)) continue;
     FaultWarning fw{};
-    if (dfc::parseFaultWarningResp(rx, host_id_, fw)) {
+    if (dfh::parseFaultWarningResp(rx, host_id_, fw)) {
       if (verbose_) debugPrintFrame(rx);
       return Result<FaultWarning>::success(fw);
     }
@@ -302,7 +302,7 @@ Result<FaultWarning> CyberGear::requestFaultWarning(int timeout_ms)
 //   struct can_frame tx
 //   {
 //   };
-//   dfc::buildSetBaudRateReq(host_id_, motor_id_, code, tx);
+//   dfh::buildSetBaudRateReq(host_id_, motor_id_, code, tx);
 //   if (verbose_) debugPrintFrame(tx);
 //   can_.send(tx);
 //   const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
@@ -312,7 +312,7 @@ Result<FaultWarning> CyberGear::requestFaultWarning(int timeout_ms)
 //     };
 //     if (!can_.recv(rx, 100)) continue;
 //     std::array<uint8_t, kUidLen> uid{};
-//     if (dfc::parseDeviceIdResp(rx, motor_id_, uid)) {
+//     if (dfh::parseDeviceIdResp(rx, motor_id_, uid)) {
 //       if (verbose_) debugPrintFrame(rx);
 //       return Result<std::array<uint8_t, kUidLen>>::success(uid);
 //     }
@@ -326,7 +326,7 @@ Result<std::array<uint8_t, 4>> CyberGear::readParamRaw(uint16_t index, int timeo
   struct can_frame tx
   {
   };
-  dfc::buildReadParamReq(host_id_, motor_id_, index, tx);
+  dfh::buildReadParamReq(host_id_, motor_id_, index, tx);
   if (verbose_) debugPrintFrame(tx);
   can_.send(tx);
 
@@ -337,7 +337,7 @@ Result<std::array<uint8_t, 4>> CyberGear::readParamRaw(uint16_t index, int timeo
     };
     if (!can_.recv(rx, 100)) continue;
     std::array<uint8_t, 4> out{};
-    if (dfc::parseReadParamResp(rx, host_id_, index, out)) {
+    if (dfh::parseReadParamResp(rx, host_id_, index, out)) {
       if (verbose_) debugPrintFrame(rx);
       return Result<std::array<uint8_t, 4>>::success(out);
     }
@@ -353,7 +353,7 @@ Result<Status> CyberGear::writeParamRaw(
   struct can_frame tx
   {
   };
-  dfc::buildWriteParamReq(host_id_, motor_id_, index, data, tx);
+  dfh::buildWriteParamReq(host_id_, motor_id_, index, data, tx);
   if (verbose_) debugPrintFrame(tx);
   can_.send(tx);
 
@@ -364,7 +364,7 @@ Result<Status> CyberGear::writeParamRaw(
     };
     if (!can_.recv(rx, 100)) continue;
     Status st{};
-    if (dfc::parseStatus(rx, st)) {
+    if (dfh::parseStatus(rx, st)) {
       if (st.motor_can_id == motor_id_) {
         if (verbose_) debugPrintFrame(rx);
         return Result<Status>::success(st);

@@ -14,7 +14,7 @@ ament_auto_find_build_dependencies()
 set(TARGET cybergear)
 ament_auto_add_library(${TARGET} SHARED
   src/${TARGET}.cpp
-  src/data_frame_codec.cpp
+  src/data_frame_handler.cpp
 )
 unset(TARGET)
 
@@ -49,12 +49,12 @@ if(BUILD_TESTING)
 
   # GoogleTest
   find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(test_data_frame_codec
-    test/test_data_frame_codec.cpp
+  ament_add_gtest(test_data_frame_handler
+    test/test_data_frame_handler.cpp
   )
-  if(TARGET test_data_frame_codec)
-    target_include_directories(test_data_frame_codec PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    target_link_libraries(test_data_frame_codec cybergear)
+  if(TARGET test_data_frame_handler)
+    target_include_directories(test_data_frame_handler PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(test_data_frame_handler cybergear)
   endif()
 endif()
 

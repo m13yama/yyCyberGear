@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "yy_cybergear/data_frame_codec.hpp"
+#include "yy_cybergear/data_frame_handler.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,7 +20,7 @@
 
 namespace yy_cybergear
 {
-namespace data_frame_codec
+namespace data_frame_handler
 {
 namespace
 {
@@ -261,5 +261,5 @@ bool parseReadParamResp(
   return true;
 }
 
-}  // namespace data_frame_codec
+}  // namespace data_frame_handler
 }  // namespace yy_cybergear
