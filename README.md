@@ -5,10 +5,14 @@
 
 ## 概要
 
-- CyberGear アクチュエータを Linux SocketCAN 経由で扱うための ROS 2 パッケージ群です。
-- `yy_socket_can`, `yy_cybergear`, `yy_cybergear_app` の 3 つで構成し、ドライバ層から GUI までをカバーします。
+- CyberGearアクチュエータをLinux SocketCAN経由で扱うためのROS2パッケージ群です。
+- `yy_socket_can`, `yy_cybergear`, `yy_cybergear_app` の3つで構成し、ドライバ層からGUIまでをカバーします。
 - 例題バイナリと最小限のテストを含み、セットアップ直後から通信確認ができます。
-- USB-CANアダプタは<https://amzn.asia/d/clTand9>を使用して動作確認しています。
+
+## 環境
+
+- OS: Ubuntu 20.04 (ROS2 humble)
+- USB-CANアダプタ: <https://amzn.asia/d/clTand9>
 
 ## パッケージ構成
 
@@ -18,7 +22,7 @@
 
 ## ビルド手順
 
-1. ROS2 (Humble 以降) をインストールしておきます。
+1. ワークスペースを作成して、`[ワークスペース]/src`に本リポジトリをクローンします。
 2. ワークスペース直下で`colcon build`を実行します。
 3. 完了後に`source install/setup.bash`を読み込みます。
 
