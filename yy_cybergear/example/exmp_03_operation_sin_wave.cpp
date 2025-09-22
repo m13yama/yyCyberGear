@@ -37,7 +37,7 @@ void handle_sigint(int) { g_running = false; }
 
 int main(int argc, char ** argv)
 {
-  CLI::App app{"CyberGear: sine-wave position control using type-1 op commands"};
+  CLI::App app{"CyberGear: sine-wave operation control using type-1 op commands"};
 
   std::string ifname{"can0"};
   std::string host_id_str{"0x01"};
@@ -47,13 +47,12 @@ int main(int argc, char ** argv)
   // Sine parameters
   double amp_rad = 0.5;     // amplitude [rad]
   double freq_hz = 0.5;     // frequency [Hz]
-  double center_rad = 0.0;  // center offset [rad]
   double kp = 50.0;         // position gain
   double kd = 1.0;          // velocity gain
-  double limit_tau = 6.0;   // torque limit [Nm]
-  double limit_spd = 10.0;  // speed limit [rad/s]
-  int rate_hz = 100;        // command rate
-  double duration = 0.0;    // 0 => run until Ctrl+C
+  double target_vel = 0.0;  // additional target velocity [rad/s]
+  double tau_offset = 0.0;  // offset torque [Nm]
+  // Loop timing (fixed internal rate)
+  constexpr int kRateHz = 100;
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -67,25 +66,16 @@ int main(int argc, char ** argv)
   app.add_option("-f,--freq", freq_hz, "Sine frequency [Hz]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
-  app.add_option("-c,--center", center_rad, "Center position [rad]")->capture_default_str();
   app.add_option("--kp", kp, "Position gain (0..500)")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
   app.add_option("--kd", kd, "Velocity gain (0..5)")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
-  app.add_option("--limit-tau", limit_tau, "Torque limit [Nm]")
-    ->check(CLI::NonNegativeNumber)
+  app.add_option("--target-vel", target_vel, "Additional target velocity [rad/s]")
     ->capture_default_str();
-  app.add_option("--limit-spd", limit_spd, "Speed limit [rad/s]")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app.add_option("-r,--rate", rate_hz, "Command rate [Hz]")
-    ->check(CLI::PositiveNumber)
-    ->capture_default_str();
-  app.add_option("-d,--duration", duration, "Run duration [s] (0 = infinite)")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
+  app.add_option("--tau-offset", tau_offset, "Offset torque [Nm]")->capture_default_str();
+  // Removed: rate and duration options (fixed internal rate, run until Ctrl+C)
   app.add_flag("-v,--verbose", verbose, "Verbose CAN frame prints");
 
   try {
@@ -115,41 +105,39 @@ int main(int argc, char ** argv)
     CyberGear dev(ifname, host, motor, verbose);
     dev.open();
 
-    // Basic safe setup: clear faults, operation mode, limits, enable motor
+    // Basic safe setup: clear faults, set operation mode, enable motor
     (void)dev.clearFaults();
     (void)dev.setRunMode(CyberGear::RunMode::Operation).ok();
-    (void)dev.setTorqueLimit(static_cast<float>(limit_tau)).ok();
-    (void)dev.setSpeedLimit(static_cast<float>(limit_spd)).ok();
     (void)dev.enableMotor();
 
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
-    const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / rate_hz)};
+    const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / kRateHz)};
 
-    std::cout << "Sine position control on motor 0x" << std::uppercase << std::hex << std::setw(2)
+    std::cout << "Sine operation control on motor 0x" << std::uppercase << std::hex << std::setw(2)
               << std::setfill('0') << static_cast<unsigned>(motor) << std::dec
-              << ": amp=" << amp_rad << " rad, freq=" << freq_hz << " Hz, center=" << center_rad
-              << " rad, kp=" << kp << ", kd=" << kd << ", rate=" << rate_hz << " Hz" << '\n';
+              << ": amp=" << amp_rad << " rad, freq=" << freq_hz << " Hz, kp=" << kp
+              << ", kd=" << kd << ", target_vel=" << target_vel << " rad/s"
+              << ", tau_offset=" << tau_offset << " Nm" << '\n';
 
     while (g_running) {
       const auto start = clock::now();
       const auto deadline = start + dt_ns;
       const double t = std::chrono::duration<double>(start - t0).count();
-      if (duration > 0.0 && t >= duration) break;
 
       // Compute reference
       // Use local constant for pi to avoid non-standard M_PI macro dependency
       constexpr double kPi = 3.14159265358979323846;
       const double omega = 2.0 * kPi * freq_hz;
-      const double pos = center_rad + amp_rad * std::sin(omega * t);
-      const double vel = omega * amp_rad * std::cos(omega * t);
+      const double pos = amp_rad * std::sin(omega * t);
+      const double vel = omega * amp_rad * std::cos(omega * t) + target_vel;
 
       yy_cybergear::OpCommand cmd{};
       cmd.pos_rad = static_cast<float>(pos);
       cmd.vel_rad_s = static_cast<float>(vel);
       cmd.kp = static_cast<float>(kp);
       cmd.kd = static_cast<float>(kd);
-      cmd.torque_Nm = 0.0f;
+      cmd.torque_Nm = static_cast<float>(tau_offset);
 
       // Send op command and print returned status (type-2)
       {

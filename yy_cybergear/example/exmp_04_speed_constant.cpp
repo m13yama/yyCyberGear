@@ -43,10 +43,8 @@ int main(int argc, char ** argv)
 
   // Control parameters
   double speed_rad_s = 2.0;  // desired constant speed [rad/s] (can be negative)
-  double limit_tau = 6.0;    // torque limit [Nm]
-  double limit_spd = 50.0;   // speed limit [rad/s]
-  int rate_hz = 100;         // command update rate [Hz]
-  double duration = 0.0;     // 0 => run until Ctrl+C
+  // Loop timing (fixed internal rate)
+  constexpr int kRateHz = 100;
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -55,18 +53,6 @@ int main(int argc, char ** argv)
   app.add_option("-M,--motor-id", motor_id_str, "Motor ID (decimal or 0x-prefixed hex)")
     ->capture_default_str();
   app.add_option("-s,--speed", speed_rad_s, "Target speed [rad/s] (negative allowed)")
-    ->capture_default_str();
-  app.add_option("--limit-tau", limit_tau, "Torque limit [Nm]")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app.add_option("--limit-spd", limit_spd, "Speed limit [rad/s]")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app.add_option("-r,--rate", rate_hz, "Command rate [Hz]")
-    ->check(CLI::PositiveNumber)
-    ->capture_default_str();
-  app.add_option("-d,--duration", duration, "Run duration [s] (0 = infinite)")
-    ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
   app.add_flag("-v,--verbose", verbose, "Verbose CAN frame prints");
 
@@ -97,27 +83,23 @@ int main(int argc, char ** argv)
     CyberGear dev(ifname, host, motor, verbose);
     dev.open();
 
-    // Basic safe setup: clear faults, speed mode, limits, enable motor
+    // Basic safe setup: clear faults, set speed mode, enable motor
     (void)dev.clearFaults();
     (void)dev.setRunMode(CyberGear::RunMode::Speed).ok();
-    (void)dev.setTorqueLimit(static_cast<float>(limit_tau)).ok();
-    (void)dev.setSpeedLimit(static_cast<float>(limit_spd)).ok();
     (void)dev.enableMotor();
 
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
-    const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / rate_hz)};
+    const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / kRateHz)};
 
     std::cout << "Constant speed control on motor 0x" << std::uppercase << std::hex << std::setw(2)
               << std::setfill('0') << static_cast<unsigned>(motor) << std::dec
-              << ": speed=" << speed_rad_s << " rad/s, limit_tau=" << limit_tau
-              << " Nm, limit_spd=" << limit_spd << " rad/s, rate=" << rate_hz << " Hz" << '\n';
+              << ": speed=" << speed_rad_s << " rad/s" << '\n';
 
     while (g_running) {
       const auto start = clock::now();
       const auto deadline = start + dt_ns;
       const double t = std::chrono::duration<double>(start - t0).count();
-      if (duration > 0.0 && t >= duration) break;
 
       {
         auto r = dev.setSpeedReference(static_cast<float>(speed_rad_s));

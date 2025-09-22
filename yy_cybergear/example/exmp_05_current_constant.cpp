@@ -42,11 +42,9 @@ int main(int argc, char ** argv)
   bool verbose = false;
 
   // Control parameters
-  double iq_a = 0.0;        // target q-axis current [A] (can be negative)
-  double limit_tau = 6.0;   // torque limit [Nm]
-  double limit_cur = 10.0;  // current limit [A]
-  int rate_hz = 100;        // command rate [Hz]
-  double duration = 0.0;    // 0 => run until Ctrl+C
+  double iq_a = 0.0;  // target q-axis current [A] (can be negative)
+  // Loop timing (fixed internal rate)
+  constexpr int kRateHz = 100;
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -55,18 +53,6 @@ int main(int argc, char ** argv)
   app.add_option("-M,--motor-id", motor_id_str, "Motor ID (decimal or 0x-prefixed hex)")
     ->capture_default_str();
   app.add_option("-c,--current", iq_a, "Target current Iq [A] (negative allowed)")
-    ->capture_default_str();
-  app.add_option("--limit-tau", limit_tau, "Torque limit [Nm]")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app.add_option("--limit-cur", limit_cur, "Current limit [A]")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app.add_option("-r,--rate", rate_hz, "Command rate [Hz]")
-    ->check(CLI::PositiveNumber)
-    ->capture_default_str();
-  app.add_option("-d,--duration", duration, "Run duration [s] (0 = infinite)")
-    ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
   app.add_flag("-v,--verbose", verbose, "Verbose CAN frame prints");
 
@@ -97,27 +83,23 @@ int main(int argc, char ** argv)
     CyberGear dev(ifname, host, motor, verbose);
     dev.open();
 
-    // Safe setup: clear faults, set current mode, limits, enable
+    // Safe setup: clear faults, set current mode, enable
     (void)dev.clearFaults();
     (void)dev.setRunMode(CyberGear::RunMode::Current).ok();
-    (void)dev.setTorqueLimit(static_cast<float>(limit_tau)).ok();
-    (void)dev.setCurrentLimit(static_cast<float>(limit_cur)).ok();
     (void)dev.enableMotor();
 
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
-    const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / rate_hz)};
+    const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / kRateHz)};
 
     std::cout << "Constant current control on motor 0x" << std::uppercase << std::hex
               << std::setw(2) << std::setfill('0') << static_cast<unsigned>(motor) << std::dec
-              << ": IqRef=" << iq_a << " A, limit_tau=" << limit_tau
-              << " Nm, limit_cur=" << limit_cur << " A, rate=" << rate_hz << " Hz" << '\n';
+              << ": IqRef=" << iq_a << " A" << '\n';
 
     while (g_running) {
       const auto start = clock::now();
       const auto deadline = start + dt_ns;
       const double t = std::chrono::duration<double>(start - t0).count();
-      if (duration > 0.0 && t >= duration) break;
 
       {
         auto r = dev.setIqReference(static_cast<float>(iq_a));
