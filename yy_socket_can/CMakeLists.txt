@@ -12,7 +12,11 @@ ament_auto_find_build_dependencies()
 
 # socket_can ============================
 set(TARGET socket_can)
-ament_auto_add_library(${TARGET} SHARED src/${TARGET}.cpp)
+ament_auto_add_library(${TARGET} SHARED
+  src/${TARGET}.cpp
+  src/can_dispatcher.cpp
+  src/can_runtime.cpp
+)
 unset(TARGET)
 
 if(BUILD_TESTING)
