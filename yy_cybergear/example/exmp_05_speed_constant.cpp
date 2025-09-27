@@ -44,7 +44,7 @@ int main(int argc, char ** argv)
   // Control parameters
   double speed_rad_s = 2.0;  // desired constant speed [rad/s] (can be negative)
   // Loop timing (fixed internal rate)
-  constexpr int kRateHz = 100;
+  constexpr int kRateHz = 1;
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -123,14 +123,14 @@ int main(int argc, char ** argv)
             std::cerr << "Fault detected: bits=0b" << std::uppercase << std::hex << std::setw(2)
                       << std::setfill('0') << static_cast<unsigned>(st.fault_bits) << std::dec
                       << ". Stopping motor and exiting." << '\n';
-            (void)dev.stopMotor();
-            return EXIT_FAILURE;
+            // (void)dev.stopMotor();
+            // return EXIT_FAILURE;
           }
         } else {
           std::cerr << "Failed to set speed reference: " << yy_cybergear::to_string(*r.error())
                     << ". Stopping motor and exiting." << '\n';
-          (void)dev.stopMotor();
-          return EXIT_FAILURE;
+          // (void)dev.stopMotor();
+          // return EXIT_FAILURE;
         }
       }
 
@@ -143,8 +143,8 @@ int main(int argc, char ** argv)
           std::chrono::duration_cast<std::chrono::microseconds>(dt_ns).count();
         std::cerr << "Control loop overrun: " << over_us << " us past the period (" << period_us
                   << " us). Aborting." << '\n';
-        (void)dev.stopMotor();
-        return EXIT_FAILURE;
+        // (void)dev.stopMotor();
+        // return EXIT_FAILURE;
       }
 
       std::this_thread::sleep_until(deadline);
