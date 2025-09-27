@@ -29,7 +29,7 @@ int main(int argc, char ** argv)
   // CLI11-based argument parsing
   CLI::App app{"CyberGear: get MCU ID over SocketCAN"};
   std::string ifname{"can0"};
-  std::string host_id_str{"0x01"};
+  std::string host_id_str{"0x00"};
   std::string motor_id_str{"0x01"};
   int timeout_ms = 2000;
   bool verbose = false;

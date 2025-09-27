@@ -51,9 +51,10 @@ void print_status(const yy_cybergear::Status & st, double t_sec)
             << " tau=" << st.torque_Nm << "Nm"
             << " T=" << st.temperature_c << "C"
             << " mode=" << static_cast<unsigned>(st.mode) << " faults=0b" << std::uppercase
-            << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(st.fault_bits)
-            << std::dec << " mid=0x" << std::uppercase << std::hex << std::setw(2)
-            << std::setfill('0') << static_cast<unsigned>(st.motor_can_id) << std::dec << '\n';
+            << std::hex << std::setw(2) << std::setfill('0')
+            << static_cast<unsigned>(st.fault_bits) << std::dec << " mid=0x" << std::uppercase
+            << std::hex << std::setw(2) << std::setfill('0')
+            << static_cast<unsigned>(st.motor_can_id) << std::dec << '\n';
 }
 
 }  // namespace
@@ -62,7 +63,7 @@ int main(int argc, char ** argv)
 {
   CLI::App app{"CyberGear: monitor status frames (type 2)"};
   std::string ifname{"can0"};
-  std::string host_id_str{"0x01"};
+  std::string host_id_str{"0x00"};
   std::string motor_id_str{"0x01"};
   bool verbose = false;
   int timeout_ms = 1000;
@@ -148,7 +149,8 @@ int main(int argc, char ** argv)
       if (end > deadline) {
         const auto over = end - deadline;
         const auto over_us = std::chrono::duration_cast<std::chrono::microseconds>(over).count();
-        const auto period_us = std::chrono::duration_cast<std::chrono::microseconds>(dt_ns).count();
+        const auto period_us =
+          std::chrono::duration_cast<std::chrono::microseconds>(dt_ns).count();
         std::cerr << "Monitor loop overrun: " << over_us << " us past the period (" << period_us
                   << " us). Continuing." << '\n';
       }
