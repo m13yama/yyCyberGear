@@ -55,7 +55,7 @@ using Clock = std::chrono::steady_clock;
 // Centralized logging lives in yy_cybergear/logging.hpp (append command info)
 inline void print_status(const yy_cybergear::CyberGear & cg, double t_sec, double cmd_rad)
 {
-  const std::string status = yy_cybergear::logging::format_status_line(cg, t_sec);
+  const std::string status = yy_cybergear::logging::formatStatusLine(cg, t_sec);
   std::ostringstream oss;
   oss << status << " cmd=" << std::fixed << std::setprecision(3) << cmd_rad << "rad";
   std::cout << oss.str() << '\n';
@@ -63,7 +63,7 @@ inline void print_status(const yy_cybergear::CyberGear & cg, double t_sec, doubl
 
 inline void print_params(const yy_cybergear::CyberGear & cg)
 {
-  std::cout << yy_cybergear::logging::format_params_summary(cg);
+  std::cout << yy_cybergear::logging::formatParamsSummary(cg);
 }
 
 // Register a wide handler and dispatch frames into all CyberGear mirrors

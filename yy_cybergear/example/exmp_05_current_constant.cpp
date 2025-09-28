@@ -53,12 +53,12 @@ using Clock = std::chrono::steady_clock;
 // Centralized logging lives in yy_cybergear/logging.hpp
 inline void print_status(const yy_cybergear::CyberGear & cg, double t_sec)
 {
-  std::cout << yy_cybergear::logging::format_status_line(cg, t_sec) << '\n';
+  std::cout << yy_cybergear::logging::formatStatusLine(cg, t_sec) << '\n';
 }
 
 inline void print_params(const yy_cybergear::CyberGear & cg)
 {
-  std::cout << yy_cybergear::logging::format_params_summary(cg);
+  std::cout << yy_cybergear::logging::formatParamsSummary(cg);
 }
 
 // Register a wide handler and dispatch frames into all CyberGear mirrors

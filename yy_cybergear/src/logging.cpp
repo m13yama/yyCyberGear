@@ -23,7 +23,7 @@ namespace yy_cybergear
 namespace logging
 {
 
-std::string format_status_line(const CyberGear & cg, double t_sec)
+std::string formatStatusLine(const CyberGear & cg, double t_sec)
 {
   const auto s = cg.getStatus();
   const auto status_str = statusModeToString(s.status_mode);
@@ -43,7 +43,7 @@ std::string format_status_line(const CyberGear & cg, double t_sec)
   return oss.str();
 }
 
-std::string format_params_summary(const CyberGear & cg)
+std::string formatParamsSummary(const CyberGear & cg)
 {
   std::ostringstream oss;
   const auto uid = cg.uid();

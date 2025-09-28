@@ -25,11 +25,11 @@ namespace logging
 
 // Format a one-line status string (no trailing newline).
 // Example: "t=0.123s ang=...rad vel=...rad/s tau=...Nm T=...C mode=... faults=0b.. mid=0x.."
-std::string format_status_line(const CyberGear & cg, double t_sec);
+std::string formatStatusLine(const CyberGear & cg, double t_sec);
 
 // Format a multi-line parameter summary ending with a newline.
 // Includes motor id, uid, and selected limits/gains.
-std::string format_params_summary(const CyberGear & cg);
+std::string formatParamsSummary(const CyberGear & cg);
 
 // ===== String conversions (moved from protocol_types.hpp) =====
 // Convert enums/bitfields to human-readable strings
