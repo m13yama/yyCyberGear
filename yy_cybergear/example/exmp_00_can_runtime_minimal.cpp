@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// clang-format off
 #include <linux/can.h>
 
 #include <CLI/CLI.hpp>
@@ -27,9 +26,8 @@
 #include <string>
 #include <thread>
 
-#include "yy_socket_can/can_runtime.hpp"
 #include "yy_cybergear/cybergear.hpp"
-// clang-format on
+#include "yy_socket_can/can_runtime.hpp"
 
 namespace
 {
