@@ -81,8 +81,9 @@ void CanRuntime::stop()
   for (auto & kv : channels_) {
     auto & ch = kv.second;
     ch->running.store(false);
-    if (ch->rx_thread.joinable()) ch->rx_thread.join();
+    // Low-latency shutdown: close socket first to unblock any blocking read(), then join.
     ch->sock.close();
+    if (ch->rx_thread.joinable()) ch->rx_thread.join();
   }
 }
 
@@ -131,7 +132,11 @@ void CanRuntime::rx_worker(Channel * ch)
       std::cerr << "[CanRuntime] RX error on " << ch->sock.ifname() << ": " << e.what()
                 << std::endl;
       // Simple recovery: short sleep then continue; in real impl, try reopen etc.
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      // If stopping, exit immediately without extra delay to reduce shutdown latency.
+      if (!running_.load() || !ch->running.load()) {
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
 }
