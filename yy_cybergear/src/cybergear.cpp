@@ -172,7 +172,10 @@ bool CyberGear::updateFromDeviceIdResp(const struct can_frame & in, bool type_ch
   if (!data_frame_handler::parseDeviceIdResp(in, host_id_, motor_id_, uid, type_check)) {
     return false;
   }
-  uid_ = uid;
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    uid_ = uid;
+  }
   return true;
 }
 
@@ -182,14 +185,17 @@ bool CyberGear::updateFromStatusFrame(const struct can_frame & in, bool type_che
   if (!data_frame_handler::parseStatus(in, host_id_, motor_id_, s, type_check)) {
     return false;
   }
-  angle_rad_ = s.angle_rad;
-  vel_rad_s_ = s.vel_rad_s;
-  torque_Nm_ = s.torque_Nm;
-  temperature_c_ = s.temperature_c;
-  motor_can_id_ = s.motor_can_id;
-  mode_ = s.mode;
-  fault_bits_ = s.fault_bits;
-  raw_eff_id_ = s.raw_eff_id;
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    angle_rad_ = s.angle_rad;
+    vel_rad_s_ = s.vel_rad_s;
+    torque_Nm_ = s.torque_Nm;
+    temperature_c_ = s.temperature_c;
+    motor_can_id_ = s.motor_can_id;
+    mode_ = s.mode;
+    fault_bits_ = s.fault_bits;
+    raw_eff_id_ = s.raw_eff_id;
+  }
   return true;
 }
 
@@ -203,6 +209,7 @@ bool CyberGear::updateFromReadParamResp(const struct can_frame & in, bool type_c
   const uint32_t u32 = byte_util::readLE32(data.data());
 
   // Interpret based on known parameter index
+  std::lock_guard<std::mutex> lk(mu_);
   switch (index) {
     case RUN_MODE:
       run_mode_ = u32;
@@ -270,8 +277,11 @@ bool CyberGear::updateFromFaultWarningResp(const struct can_frame & in, bool typ
   if (!data_frame_handler::parseFaultWarningResp(in, host_id_, motor_id_, fw, type_check)) {
     return false;
   }
-  faults_bits_ = fw.faults;
-  warnings_bits_ = fw.warnings;
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    faults_bits_ = fw.faults;
+    warnings_bits_ = fw.warnings;
+  }
   return true;
 }
 

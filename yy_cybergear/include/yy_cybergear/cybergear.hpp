@@ -19,6 +19,7 @@
 
 #include <array>
 #include <cstdint>
+#include <mutex>
 
 #include "yy_cybergear/protocol_types.hpp"
 
@@ -139,43 +140,183 @@ public:
   UpdateKind dispatchAndUpdate(const struct can_frame & in);
 
   // ===== Status getters =====
-  float angle_rad() const { return angle_rad_; }
-  float vel_rad_s() const { return vel_rad_s_; }
-  float torque_Nm() const { return torque_Nm_; }
-  float temperature_c() const { return temperature_c_; }
-  uint8_t motor_can_id() const { return motor_can_id_; }
-  uint8_t mode() const { return mode_; }
-  uint8_t fault_bits() const { return fault_bits_; }
-  uint32_t raw_eff_id() const { return raw_eff_id_; }
+  struct StatusSnapshot
+  {
+    float angle_rad{0.0f};
+    float vel_rad_s{0.0f};
+    float torque_Nm{0.0f};
+    float temperature_c{0.0f};
+    uint8_t motor_can_id{0};
+    uint8_t mode{0};
+    uint8_t fault_bits{0};
+    uint32_t raw_eff_id{0};
+  };
+
+  // Thread-safe snapshot of status fields
+  StatusSnapshot getStatus() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return StatusSnapshot{angle_rad_,    vel_rad_s_, torque_Nm_,  temperature_c_,
+                          motor_can_id_, mode_,      fault_bits_, raw_eff_id_};
+  }
+
+  // Backward-compatible per-field getters (thread-safe)
+  float angle_rad() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return angle_rad_;
+  }
+  float vel_rad_s() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return vel_rad_s_;
+  }
+  float torque_Nm() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return torque_Nm_;
+  }
+  float temperature_c() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return temperature_c_;
+  }
+  uint8_t motor_can_id() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return motor_can_id_;
+  }
+  uint8_t mode() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return mode_;
+  }
+  uint8_t fault_bits() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return fault_bits_;
+  }
+  uint32_t raw_eff_id() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return raw_eff_id_;
+  }
 
   // ===== Fault/Warning getters =====
-  uint32_t faults_bits() const { return faults_bits_; }
-  uint32_t warnings_bits() const { return warnings_bits_; }
+  uint32_t faults_bits() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return faults_bits_;
+  }
+  uint32_t warnings_bits() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return warnings_bits_;
+  }
 
   // ===== UID getter =====
-  const std::array<uint8_t, kUidLen> & uid() const { return uid_; }
+  std::array<uint8_t, kUidLen> uid() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return uid_;
+  }
 
   // ===== Parameter getters (mirror) =====
-  uint32_t run_mode() const { return run_mode_; }
-  float iq_reference() const { return iq_reference_; }
-  float speed_reference() const { return speed_reference_; }
-  float torque_limit() const { return torque_limit_; }
-  float current_kp() const { return current_kp_; }
-  float current_ki() const { return current_ki_; }
-  float current_filter_gain() const { return current_filter_gain_; }
-  float position_reference() const { return position_reference_; }
-  float speed_limit() const { return speed_limit_; }
-  float current_limit() const { return current_limit_; }
-  float mechanical_position() const { return mechanical_position_; }
-  float iq_filter() const { return iq_filter_; }
-  float mechanical_velocity() const { return mechanical_velocity_; }
-  float bus_voltage() const { return bus_voltage_; }
-  int16_t rotation_turns() const { return rotation_turns_; }
-  float position_kp() const { return position_kp_; }
-  float speed_kp() const { return speed_kp_; }
-  float speed_ki() const { return speed_ki_; }
+  uint32_t run_mode() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return run_mode_;
+  }
+  float iq_reference() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return iq_reference_;
+  }
+  float speed_reference() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return speed_reference_;
+  }
+  float torque_limit() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return torque_limit_;
+  }
+  float current_kp() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return current_kp_;
+  }
+  float current_ki() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return current_ki_;
+  }
+  float current_filter_gain() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return current_filter_gain_;
+  }
+  float position_reference() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return position_reference_;
+  }
+  float speed_limit() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return speed_limit_;
+  }
+  float current_limit() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return current_limit_;
+  }
+  float mechanical_position() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return mechanical_position_;
+  }
+  float iq_filter() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return iq_filter_;
+  }
+  float mechanical_velocity() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return mechanical_velocity_;
+  }
+  float bus_voltage() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return bus_voltage_;
+  }
+  int16_t rotation_turns() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return rotation_turns_;
+  }
+  float position_kp() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return position_kp_;
+  }
+  float speed_kp() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return speed_kp_;
+  }
+  float speed_ki() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return speed_ki_;
+  }
 
 private:
+  // Synchronization for concurrent readers/writers (RX thread vs user thread)
+  mutable std::mutex mu_;
+
   // IDs
   uint8_t host_id_{};
   uint8_t motor_id_{};

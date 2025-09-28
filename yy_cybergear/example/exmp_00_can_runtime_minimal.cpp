@@ -36,16 +36,16 @@ void handle_sigint(int) { g_running = false; }
 
 void print_status(const yy_cybergear::CyberGear & cg, double t_sec)
 {
+  const auto s = cg.getStatus();
   std::cout << std::fixed << std::setprecision(3) << " t=" << t_sec << "s"
-            << " ang=" << cg.angle_rad() << "rad"
-            << " vel=" << cg.vel_rad_s() << "rad/s"
-            << " tau=" << cg.torque_Nm() << "Nm"
-            << " T=" << cg.temperature_c() << "C"
-            << " mode=" << static_cast<unsigned>(cg.mode()) << " faults=0b" << std::uppercase
-            << std::hex << std::setw(2) << std::setfill('0')
-            << static_cast<unsigned>(cg.fault_bits()) << std::dec << " mid=0x" << std::uppercase
-            << std::hex << std::setw(2) << std::setfill('0')
-            << static_cast<unsigned>(cg.motor_can_id()) << std::dec << '\n';
+            << " ang=" << s.angle_rad << "rad"
+            << " vel=" << s.vel_rad_s << "rad/s"
+            << " tau=" << s.torque_Nm << "Nm"
+            << " T=" << s.temperature_c << "C"
+            << " mode=" << static_cast<unsigned>(s.mode) << " faults=0b" << std::uppercase
+            << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(s.fault_bits)
+            << std::dec << " mid=0x" << std::uppercase << std::hex << std::setw(2)
+            << std::setfill('0') << static_cast<unsigned>(s.motor_can_id) << std::dec << '\n';
 }
 }  // namespace
 
