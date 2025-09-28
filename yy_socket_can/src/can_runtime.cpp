@@ -71,8 +71,7 @@ void CanRuntime::start()
 
 void CanRuntime::stop()
 {
-  // Idempotent; if not running, nothing to do
-  if (!running_.load()) return;
+  // Even if already stopping (running_ == false), we still proceed to join threads.
 
   // 1) Close the TX queue to stop accepting new frames and allow the TX thread to drain
   //    all pending frames. Keep sockets open so Stop/Shutdown frames can still be sent.
@@ -84,9 +83,8 @@ void CanRuntime::stop()
   }
 
   // 3) Now signal stop to RX side and close sockets, then join RX threads.
-  //    We deliberately set running_ to false after TX is drained so send() can succeed.
-  bool expected = true;
-  running_.compare_exchange_strong(expected, false);
+  //    Ensure running_ is false after TX is drained so send() can succeed during drain.
+  running_.store(false);
 
   {
     std::lock_guard<std::mutex> lk(m_);
