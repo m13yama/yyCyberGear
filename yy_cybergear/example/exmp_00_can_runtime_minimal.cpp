@@ -25,6 +25,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "yy_cybergear/cybergear.hpp"
 #include "yy_socket_can/can_runtime.hpp"
@@ -136,7 +137,7 @@ int main(int argc, char ** argv)
   using clock = std::chrono::steady_clock;
   const auto t0 = clock::now();
 
-  rt.registerHandler(min_id, max_id, [verbose, t0, &cgs](const struct can_frame & f) {
+  rt.registerHandler(min_id, max_id, [verbose, &cgs](const struct can_frame & f) {
     bool any = false;
     for (auto & cg : cgs) {
       const auto kind = cg.dispatchAndUpdate(f);
@@ -146,15 +147,12 @@ int main(int argc, char ** argv)
         continue;
       }
       any = true;
-      const double t = std::chrono::duration<double>(clock::now() - t0).count();
       if (verbose) {
         const uint32_t id = f.can_id & CAN_EFF_MASK;
         std::cout << "RX 0x" << std::hex << std::uppercase << id << std::dec
                   << " dlc=" << int(f.can_dlc) << "\n";
       }
-      if (kind == yy_cybergear::CyberGear::UpdateKind::Status) {
-        print_status(cg, t);
-      }
+      // Note: status printing is performed on the main thread in the loop.
       // We don't break here because multiple CGs could theoretically match (shouldn't happen).
     }
     (void)any;
@@ -177,6 +175,12 @@ int main(int argc, char ** argv)
   while (g_running) {
     const auto start = clock::now();
     const auto deadline = start + dt_ns;
+    const double t_now = std::chrono::duration<double>(start - t0).count();
+
+    // Poll and print status snapshots for all motors (main thread only)
+    for (const auto & cg : cgs) {
+      print_status(cg, t_now);
+    }
 
     for (auto & cg : cgs) {
       struct can_frame tx
@@ -192,8 +196,7 @@ int main(int argc, char ** argv)
     }
 
     // Stop on duration
-    const double t = std::chrono::duration<double>(start - t0).count();
-    if (duration > 0.0 && t >= duration) break;
+    if (duration > 0.0 && t_now >= duration) break;
 
     std::this_thread::sleep_until(deadline);
   }
