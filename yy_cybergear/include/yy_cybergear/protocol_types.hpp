@@ -21,7 +21,6 @@
 
 namespace yy_cybergear
 {
-
 // ======== Frame type classification ========
 enum class DataFrameType : uint8_t {
   Unknown = 0xFF,

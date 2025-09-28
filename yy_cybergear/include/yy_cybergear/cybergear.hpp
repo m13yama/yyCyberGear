@@ -27,10 +27,6 @@
 
 namespace yy_cybergear
 {
-
-// Lightweight builder that holds Host/Motor IDs and constructs CyberGear V2 CAN frames.
-// This class wraps the free-function builders in data_frame_handler and provides
-// per-parameter get/set helpers for convenience.
 class CyberGear
 {
 public:
