@@ -60,13 +60,16 @@ void buildWriteParamReq(
   struct can_frame & out);
 // Type 22: Set baud rate request
 void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct can_frame & out);
+// Type 21: Fault & warning snapshot request
+void buildFaultWarningReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
 
 // ========= Parsers =========
 // MCU UID response: bits 28..24 == 0, low 8 bits == 0xFE, middle bytes contain motor id
 bool parseDeviceIdResp(
   const struct can_frame & in, uint8_t expect_motor_id, std::array<uint8_t, kUidLen> & out_uid);
 bool parseStatus(const struct can_frame & in, Status & out);
-bool parseFaultWarningResp(const struct can_frame & in, uint8_t expect_host_id, FaultWarning & out);
+bool parseFaultWarningResp(
+  const struct can_frame & in, uint8_t expect_host_id, FaultWarning & out);
 bool parseReadParamResp(
   const struct can_frame & in, uint8_t expect_host_id, uint16_t expect_index,
   std::array<uint8_t, 4> & out_data);
@@ -79,6 +82,26 @@ constexpr uint32_t buildEffId(uint8_t type, uint8_t host_id, uint8_t motor_id) n
 }
 
 constexpr bool isExtended(uint32_t can_id) noexcept { return (can_id & CAN_EFF_FLAG) != 0; }
+
+// ======== Frame type classification ========
+enum class DataFrameType : uint8_t {
+  Unknown = 0xFF,
+  Type0_DeviceId = 0,
+  Type1_OpControl = 1,
+  Type2_Status = 2,
+  Type3_Enable = 3,
+  Type4_StopOrClear = 4,
+  Type6_SetMechanicalZero = 6,
+  Type7_ChangeMotorId = 7,
+  Type17_ReadParam = 17,
+  Type18_WriteParam = 18,
+  Type21_FaultWarning = 21,
+  Type22_SetBaudRate = 22,
+};
+
+// Extract DataFrameType from a CAN frame's extended ID (bits 28..24).
+// Returns Unknown if frame is not extended or type code is not recognized.
+DataFrameType getFrameType(const struct can_frame & in) noexcept;
 
 }  // namespace data_frame_handler
 }  // namespace yy_cybergear

@@ -14,6 +14,7 @@ ament_auto_find_build_dependencies()
 set(TARGET cybergear)
 ament_auto_add_library(${TARGET} SHARED
   src/${TARGET}.cpp
+  src/cybergear_v2.cpp
   src/data_frame_handler.cpp
 )
 unset(TARGET)

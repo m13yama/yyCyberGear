@@ -206,6 +206,40 @@ bool parseDeviceIdResp(
   return true;
 }
 
+DataFrameType getFrameType(const struct can_frame & in) noexcept
+{
+  if ((in.can_id & CAN_EFF_FLAG) == 0) return DataFrameType::Unknown;
+  const uint32_t eid = in.can_id & CAN_EFF_MASK;
+  const uint8_t type = static_cast<uint8_t>((eid >> 24) & 0x1Fu);
+  switch (type) {
+    case 0:
+      return DataFrameType::Type0_DeviceId;
+    case 1:
+      return DataFrameType::Type1_OpControl;
+    case 2:
+      return DataFrameType::Type2_Status;
+    case 3:
+      return DataFrameType::Type3_Enable;
+    case 4:
+      return DataFrameType::Type4_StopOrClear;
+    case 6:
+      return DataFrameType::Type6_SetMechanicalZero;
+    case 7:
+      return DataFrameType::Type7_ChangeMotorId;
+    case 17:
+      return DataFrameType::Type17_ReadParam;
+    case 18:
+      return DataFrameType::Type18_WriteParam;
+    case 21:
+      return DataFrameType::Type21_FaultWarning;
+    case 22:
+      return DataFrameType::Type22_SetBaudRate;
+    default:
+      break;
+  }
+  return DataFrameType::Unknown;
+}
+
 bool parseStatus(const struct can_frame & in, Status & out)
 {
   if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
