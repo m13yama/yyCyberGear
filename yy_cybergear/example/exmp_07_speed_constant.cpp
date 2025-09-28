@@ -41,7 +41,7 @@
 namespace
 {
 std::atomic<bool> g_running{true};
-void handle_sigint(int) { g_running = false; }
+void handle_signal(int) { g_running = false; }
 
 void print_status(const yy_cybergear::Status & st, double t_sec)
 {
@@ -130,7 +130,8 @@ int main(int argc, char ** argv)
     return EXIT_FAILURE;
   }
 
-  std::signal(SIGINT, handle_sigint);
+  std::signal(SIGINT, handle_signal);
+  std::signal(SIGTERM, handle_signal);
 
   // Setup CanRuntime
   yy_socket_can::CanRuntime rt;

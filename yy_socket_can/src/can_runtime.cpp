@@ -71,20 +71,38 @@ void CanRuntime::start()
 
 void CanRuntime::stop()
 {
-  // Make stop idempotent and safe to call from any context.
+  // Idempotent; if not running, nothing to do
   if (!running_.load()) return;
-  signal_stop();
 
-  // Join TX thread unless we're calling from it
+  // 1) Close the TX queue to stop accepting new frames and allow the TX thread to drain
+  //    all pending frames. Keep sockets open so Stop/Shutdown frames can still be sent.
+  tx_queue_.close();
+
+  // 2) Join TX thread (it exits when the queue becomes empty). Avoid self-join.
   if (tx_thread_.joinable() && std::this_thread::get_id() != tx_thread_.get_id()) {
     tx_thread_.join();
   }
 
-  // Join RX threads (sockets already closed in signal_stop)
-  std::lock_guard<std::mutex> lk(m_);
-  for (auto & kv : channels_) {
-    auto & ch = kv.second;
-    if (ch->rx_thread.joinable()) ch->rx_thread.join();
+  // 3) Now signal stop to RX side and close sockets, then join RX threads.
+  //    We deliberately set running_ to false after TX is drained so send() can succeed.
+  bool expected = true;
+  running_.compare_exchange_strong(expected, false);
+
+  {
+    std::lock_guard<std::mutex> lk(m_);
+    for (auto & kv : channels_) {
+      auto & ch = kv.second;
+      ch->running.store(false);
+      ch->sock.close();
+    }
+  }
+
+  {
+    std::lock_guard<std::mutex> lk(m_);
+    for (auto & kv : channels_) {
+      auto & ch = kv.second;
+      if (ch->rx_thread.joinable()) ch->rx_thread.join();
+    }
   }
 }
 
