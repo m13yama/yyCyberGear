@@ -194,7 +194,7 @@ int main(int argc, char ** argv)
 
   // Control loop: set RunMode=Speed and speed reference
   const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
-  while (g_running) {
+  while (g_running && rt.is_running()) {
     const auto start = clock::now();
     const auto deadline = start + dt_ns;
 

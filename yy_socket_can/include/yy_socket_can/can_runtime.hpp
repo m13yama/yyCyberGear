@@ -70,6 +70,9 @@ public:
   // Submit a TX request; thread-safe
   void post(const TxRequest & req);
 
+  // Query runtime state; returns false once stop has been requested
+  bool is_running() const noexcept { return running_.load(); }
+
   // Register RX handler via dispatcher
   void register_handler(uint32_t id_begin, uint32_t id_end, CanDispatcher::Handler cb)
   {
