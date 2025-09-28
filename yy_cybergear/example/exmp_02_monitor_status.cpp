@@ -58,7 +58,7 @@ void print_params(const yy_cybergear::CyberGear & cg)
   std::cout << std::fixed << std::setprecision(3) << "  motor_id=0x" << std::uppercase << std::hex
             << std::setw(2) << std::setfill('0') << static_cast<unsigned>(cg.motor_id())
             << std::dec << "\n"
-            << "    uid               = 0x" << std::uppercase << std::hex << std::setw(2)
+            << "    uid              = 0x" << std::uppercase << std::hex << std::setw(2)
             << std::setfill('0') << static_cast<unsigned>(uid[0]) << std::setw(2)
             << static_cast<unsigned>(uid[1]) << std::setw(2) << static_cast<unsigned>(uid[2])
             << std::setw(2) << static_cast<unsigned>(uid[3]) << std::setw(2)
