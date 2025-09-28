@@ -10,6 +10,11 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
+# exmp_00_can_runtime_minimal ============================
+set(TARGET exmp_00_can_runtime_minimal)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
+
 # cybergear library ==========================
 set(TARGET cybergear)
 ament_auto_add_library(${TARGET} SHARED
