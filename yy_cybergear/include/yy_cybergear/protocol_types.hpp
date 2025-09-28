@@ -22,6 +22,22 @@
 namespace yy_cybergear
 {
 
+// ======== Frame type classification ========
+enum class DataFrameType : uint8_t {
+  Unknown = 0xFF,
+  Type0_DeviceId = 0,
+  Type1_OpControl = 1,
+  Type2_Status = 2,
+  Type3_Enable = 3,
+  Type4_StopOrClear = 4,
+  Type6_SetMechanicalZero = 6,
+  Type7_ChangeMotorId = 7,
+  Type17_ReadParam = 17,
+  Type18_WriteParam = 18,
+  Type21_FaultWarning = 21,
+  Type22_SetBaudRate = 22,
+};
+
 // ======== CAN DLC (data length) constants ========
 namespace can_dlc
 {

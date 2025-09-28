@@ -30,22 +30,7 @@ namespace data_frame_handler
 using OpCommand = yy_cybergear::OpCommand;
 using Status = yy_cybergear::Status;
 using FaultWarning = yy_cybergear::FaultWarning;
-
-// ======== Frame type classification ========
-enum class DataFrameType : uint8_t {
-  Unknown = 0xFF,
-  Type0_DeviceId = 0,
-  Type1_OpControl = 1,
-  Type2_Status = 2,
-  Type3_Enable = 3,
-  Type4_StopOrClear = 4,
-  Type6_SetMechanicalZero = 6,
-  Type7_ChangeMotorId = 7,
-  Type17_ReadParam = 17,
-  Type18_WriteParam = 18,
-  Type21_FaultWarning = 21,
-  Type22_SetBaudRate = 22,
-};
+using DataFrameType = yy_cybergear::DataFrameType;
 
 // ========= Builders =========
 void buildGetDeviceIdReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
