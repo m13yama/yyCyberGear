@@ -76,6 +76,8 @@ std::string formatParamsSummary(const CyberGear & cg)
 // ===== String conversions (moved from protocol_types.hpp) =====
 std::string runModeToString(RunMode mode)
 {
+  // Defensive: mask to 2 bits in case upper bits are garbage
+  mode = static_cast<RunMode>(static_cast<uint8_t>(mode) & 0x03u);
   switch (mode) {
     case RunMode::OperationControl:
       return "OperationControl";

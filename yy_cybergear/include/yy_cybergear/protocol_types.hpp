@@ -81,7 +81,7 @@ constexpr uint16_t SPEED_KP = 0x701F;
 constexpr uint16_t SPEED_KI = 0x7020;
 
 // ======== Command & status types ========
-enum class RunMode : uint32_t { OperationControl = 0, Position = 1, Speed = 2, Current = 3 };
+enum class RunMode : uint8_t { OperationControl = 0, Position = 1, Speed = 2, Current = 3 };
 
 struct FaultWarning
 {
