@@ -71,8 +71,6 @@ void CanRuntime::start()
 
 void CanRuntime::stop()
 {
-  // Even if already stopping (running_ == false), we still proceed to join threads.
-
   // 1) Close the TX queue to stop accepting new frames and allow the TX thread to drain
   //    all pending frames. Keep sockets open so Stop/Shutdown frames can still be sent.
   tx_queue_.close();
@@ -106,7 +104,7 @@ void CanRuntime::stop()
 
 void CanRuntime::post(const TxRequest & req) { tx_queue_.push(req); }
 
-void CanRuntime::signal_stop()
+void CanRuntime::abort()
 {
   bool expected = true;
   if (!running_.compare_exchange_strong(expected, false)) {
@@ -150,9 +148,10 @@ void CanRuntime::tx_worker()
       // Adjust this value by changing CanRuntime::kTxInterFrameDelayUs.
       std::this_thread::sleep_for(std::chrono::microseconds(CanRuntime::kTxInterFrameDelayUs));
     } catch (const std::exception & e) {
-      std::cerr << "[CanRuntime] TX error on " << req.channel << ": " << e.what() << std::endl;
-      // Stop the runtime immediately on send error as requested
-      signal_stop();
+      std::cerr << "[CanRuntime] TX error on " << req.channel << ": " << e.what()
+                << ", aborting runtime" << std::endl;
+      // Emergency stop on send error
+      abort();
       break;
     }
   }
@@ -171,9 +170,9 @@ void CanRuntime::rx_worker(Channel * ch)
       dispatcher_.dispatch(frame);
     } catch (const std::exception & e) {
       std::cerr << "[CanRuntime] RX error on " << ch->sock.ifname() << ": " << e.what()
-                << std::endl;
-      // Stop the runtime immediately on RX error as requested
-      signal_stop();
+                << ", aborting runtime" << std::endl;
+      // Emergency stop on RX error
+      abort();
       break;
     }
   }

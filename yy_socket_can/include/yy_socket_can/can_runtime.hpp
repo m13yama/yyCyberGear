@@ -110,8 +110,9 @@ private:
   void tx_worker();
   void rx_worker(Channel * ch);
 
-  // Request stop without joining threads. Safe to call from any thread.
-  void signal_stop();
+  // Emergency stop: immediately stop runtime and close sockets (no graceful drain).
+  // Safe to call from any thread. Intended for internal error paths.
+  void abort();
 };
 
 }  // namespace yy_socket_can
