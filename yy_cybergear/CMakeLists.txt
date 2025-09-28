@@ -14,7 +14,6 @@ ament_auto_find_build_dependencies()
 set(TARGET cybergear)
 ament_auto_add_library(${TARGET} SHARED
   src/${TARGET}.cpp
-  src/cybergear_v2.cpp
   src/data_frame_handler.cpp
 )
 unset(TARGET)
@@ -24,54 +23,54 @@ set(TARGET exmp_00_can_runtime_minimal)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
-# exmp_01_get_mcu_id ============================
-set(TARGET exmp_01_get_mcu_id)
-ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-unset(TARGET)
+# # exmp_01_get_mcu_id ============================
+# set(TARGET exmp_01_get_mcu_id)
+# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+# unset(TARGET)
 
-# exmp_02_monitor_status ============================
-set(TARGET exmp_02_monitor_status)
-ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-unset(TARGET)
+# # exmp_02_monitor_status ============================
+# set(TARGET exmp_02_monitor_status)
+# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+# unset(TARGET)
 
-# exmp_03_operation_sin_wave ============================
-set(TARGET exmp_03_operation_sin_wave)
-ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-unset(TARGET)
+# # exmp_03_operation_sin_wave ============================
+# set(TARGET exmp_03_operation_sin_wave)
+# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+# unset(TARGET)
 
-# exmp_04_position_sin_wave ============================
-set(TARGET exmp_04_position_sin_wave)
-ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-unset(TARGET)
+# # exmp_04_position_sin_wave ============================
+# set(TARGET exmp_04_position_sin_wave)
+# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+# unset(TARGET)
 
-# exmp_05_speed_constant ============================
-set(TARGET exmp_05_speed_constant)
-ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-unset(TARGET)
+# # exmp_05_speed_constant ============================
+# set(TARGET exmp_05_speed_constant)
+# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+# unset(TARGET)
 
-# exmp_06_current_constant ============================
-set(TARGET exmp_06_current_constant)
-ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-unset(TARGET)
+# # exmp_06_current_constant ============================
+# set(TARGET exmp_06_current_constant)
+# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+# unset(TARGET)
 
-# exmp_07_speed_constant (CanRuntime-based) ============================
-set(TARGET exmp_07_speed_constant)
-ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-unset(TARGET)
+# # exmp_07_speed_constant (CanRuntime-based) ============================
+# set(TARGET exmp_07_speed_constant)
+# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+# unset(TARGET)
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  ament_lint_auto_find_test_dependencies()
+# if(BUILD_TESTING)
+#   find_package(ament_lint_auto REQUIRED)
+#   ament_lint_auto_find_test_dependencies()
 
-  # GoogleTest
-  find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(test_data_frame_handler
-    test/test_data_frame_handler.cpp
-  )
-  if(TARGET test_data_frame_handler)
-    target_include_directories(test_data_frame_handler PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    target_link_libraries(test_data_frame_handler cybergear)
-  endif()
-endif()
+#   # GoogleTest
+#   find_package(ament_cmake_gtest REQUIRED)
+#   ament_add_gtest(test_data_frame_handler
+#     test/test_data_frame_handler.cpp
+#   )
+#   if(TARGET test_data_frame_handler)
+#     target_include_directories(test_data_frame_handler PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+#     target_link_libraries(test_data_frame_handler cybergear)
+#   endif()
+# endif()
 
 ament_auto_package()

@@ -154,7 +154,10 @@ DataFrameType getFrameType(const struct can_frame & in) noexcept
 {
   // Only extended frames carry typed EIDs
   if ((in.can_id & CAN_EFF_FLAG) == 0) return DataFrameType::Unknown;
+
+  // Extract extended ID
   const uint32_t eid = in.can_id & CAN_EFF_MASK;
+
   // Decode 5-bit type field from EID (bits 24..28)
   const uint8_t type = static_cast<uint8_t>((eid >> 24) & 0x1Fu);
   switch (type) {

@@ -19,9 +19,6 @@
 #include <string>
 #include <vector>
 
-#include "yy_cybergear/error_code.hpp"
-#include "yy_cybergear/result.hpp"
-
 namespace yy_cybergear
 {
 

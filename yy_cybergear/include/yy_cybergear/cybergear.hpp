@@ -12,164 +12,215 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef YY_CYBERGEAR__CYBERGEAR_HPP_
-#define YY_CYBERGEAR__CYBERGEAR_HPP_
+#ifndef YY_CYBERGEAR__CYBERGEAR_V2_HPP_
+#define YY_CYBERGEAR__CYBERGEAR_V2_HPP_
 
 #include <linux/can.h>
 
 #include <array>
 #include <cstdint>
-#include <string>
 
-#include "yy_cybergear/data_frame_handler.hpp"
 #include "yy_cybergear/protocol_types.hpp"
-#include "yy_cybergear/result.hpp"
-#include "yy_socket_can/socket_can.hpp"
 
 namespace yy_cybergear
 {
 
-// SocketCAN-based CyberGear driver.
+// Lightweight builder that holds Host/Motor IDs and constructs CyberGear V2 CAN frames.
+// This class wraps the free-function builders in data_frame_handler and provides
+// per-parameter get/set helpers for convenience.
 class CyberGear
 {
 public:
-  static constexpr auto kUidLen = yy_cybergear::kUidLen;
-  static constexpr int kDefaultTimeoutMs = 200;
+  explicit CyberGear(uint8_t host_id, uint8_t motor_id) : host_id_(host_id), motor_id_(motor_id) {}
 
-  explicit CyberGear(
-    std::string ifname = "can0", uint8_t host_id = 0x01, uint8_t motor_id = 0x01,
-    bool verbose = false, int rcvbuf_bytes = -1, int sndbuf_bytes = -1) noexcept;
+  // IDs
+  uint8_t host_id() const { return host_id_; }
+  uint8_t motor_id() const { return motor_id_; }
+  void set_host_id(uint8_t v) { host_id_ = v; }
+  void set_motor_id(uint8_t v) { motor_id_ = v; }
 
-  CyberGear(const CyberGear &) = delete;
-  CyberGear & operator=(const CyberGear &) = delete;
+  // ===== Basic requests =====
+  void buildGetDeviceId(struct can_frame & out) const;
+  void buildEnable(struct can_frame & out) const;
+  void buildStop(struct can_frame & out) const;
+  void buildClearFaults(struct can_frame & out) const;
+  void buildSetMechanicalZero(struct can_frame & out) const;
+  void buildChangeMotorId(uint8_t new_motor_id, struct can_frame & out) const;
+  void buildOpControl(const OpCommand & cmd, struct can_frame & out) const;
+  void buildFaultWarning(struct can_frame & out) const;  // request snapshot
+  void buildSetBaudRate(uint8_t code, struct can_frame & out) const;
 
-  CyberGear(CyberGear &&) noexcept = default;
-  CyberGear & operator=(CyberGear &&) noexcept = default;
+  // ===== Generic parameter get/set =====
+  void buildReadParam(uint16_t index, struct can_frame & out) const;
+  void buildWriteParam(
+    uint16_t index, const std::array<uint8_t, 4> & data, struct can_frame & out) const;
 
-  ~CyberGear() = default;
+  // ===== Per-parameter helpers =====
+  // RUN_MODE (0x7005): 0 reset, 1 cali, 2 run
+  void buildGetRunMode(struct can_frame & out) const { buildReadParam(RUN_MODE, out); }
+  void buildSetRunMode(uint32_t mode, struct can_frame & out) const;
 
-  void open();
-  void close() noexcept;
-  [[nodiscard]] bool isOpen() const noexcept { return can_.isOpen(); }
+  // IQ_REFERENCE (A)
+  void buildGetIqReference(struct can_frame & out) const { buildReadParam(IQ_REFERENCE, out); }
+  void buildSetIqReference(float ampere, struct can_frame & out) const;
 
-  const std::string & ifname() const noexcept { return ifname_; }
-  uint8_t hostId() const noexcept { return host_id_; }
-  uint8_t motorId() const noexcept { return motor_id_; }
-  void setHostId(uint8_t id) noexcept { host_id_ = id; }
-  void setMotorId(uint8_t id) noexcept { motor_id_ = id; }
-  void setVerbose(bool v) noexcept { verbose_ = v; }
-  bool verbose() const noexcept { return verbose_; }
+  // SPEED_REFERENCE (rad/s)
+  void buildGetSpeedReference(struct can_frame & out) const
+  {
+    buildReadParam(SPEED_REFERENCE, out);
+  }
+  void buildSetSpeedReference(float rad_s, struct can_frame & out) const;
 
-  // MCU UID (8 bytes). Returns UID on success.
-  // Timeout is specified in milliseconds for consistency across the API.
-  [[nodiscard]] Result<std::array<uint8_t, kUidLen>> getMcuId(int timeout_ms = kDefaultTimeoutMs);
+  // TORQUE_LIMIT (Nm)
+  void buildGetTorqueLimit(struct can_frame & out) const { buildReadParam(TORQUE_LIMIT, out); }
+  void buildSetTorqueLimit(float nm, struct can_frame & out) const;
 
-  // Run mode for 0x7005 parameter
-  enum class RunMode : uint8_t { Operation = 0, Position = 1, Speed = 2, Current = 3 };
+  // CURRENT loop gains / filter
+  void buildGetCurrentKp(struct can_frame & out) const { buildReadParam(CURRENT_KP, out); }
+  void buildSetCurrentKp(float v, struct can_frame & out) const;
+  void buildGetCurrentKi(struct can_frame & out) const { buildReadParam(CURRENT_KI, out); }
+  void buildSetCurrentKi(float v, struct can_frame & out) const;
+  void buildGetCurrentFilterGain(struct can_frame & out) const
+  {
+    buildReadParam(CURRENT_FILTER_GAIN, out);
+  }
+  void buildSetCurrentFilterGain(float v, struct can_frame & out) const;
 
-  // Send op command (type 1). Torque in CAN ID bits 23..8. Returns type-2 status on success.
-  [[nodiscard]] Result<Status> sendOperationCommand(
-    const OpCommand & cmd, int timeout_ms = kDefaultTimeoutMs);
+  // Position/Speed/Current references and limits
+  void buildGetPositionReference(struct can_frame & out) const
+  {
+    buildReadParam(POSITION_REFERENCE, out);
+  }
+  void buildSetPositionReference(float rad, struct can_frame & out) const;
+  void buildGetSpeedLimit(struct can_frame & out) const { buildReadParam(SPEED_LIMIT, out); }
+  void buildSetSpeedLimit(float rad_s, struct can_frame & out) const;
+  void buildGetCurrentLimit(struct can_frame & out) const { buildReadParam(CURRENT_LIMIT, out); }
+  void buildSetCurrentLimit(float ampere, struct can_frame & out) const;
 
-  // ========= Maintenance / control commands =========
-  // Clear faults (type 4, Byte[0]=1). Returns first type-2 status on success.
-  [[nodiscard]] Result<Status> clearFaults(int timeout_ms = kDefaultTimeoutMs);
+  // Telemetry values (also provide set in case firmware allows writing)
+  void buildGetMechanicalPosition(struct can_frame & out) const
+  {
+    buildReadParam(MECHANICAL_POSITION, out);
+  }
+  void buildSetMechanicalPosition(float rad, struct can_frame & out) const;
+  void buildGetIqFilter(struct can_frame & out) const { buildReadParam(IQ_FILTER, out); }
+  void buildSetIqFilter(float ampere, struct can_frame & out) const;
+  void buildGetMechanicalVelocity(struct can_frame & out) const
+  {
+    buildReadParam(MECHANICAL_VELOCITY, out);
+  }
+  void buildSetMechanicalVelocity(float rad_s, struct can_frame & out) const;
+  void buildGetBusVoltage(struct can_frame & out) const { buildReadParam(BUS_VOLTAGE, out); }
+  void buildSetBusVoltage(float volt, struct can_frame & out) const;
+  void buildGetRotationTurns(struct can_frame & out) const { buildReadParam(ROTATION_TURNS, out); }
+  void buildSetRotationTurns(int16_t turns, struct can_frame & out) const;
 
-  // Stop/reset motor (type 4). Returns first type-2 status on success.
-  [[nodiscard]] Result<Status> stopMotor(int timeout_ms = kDefaultTimeoutMs);
+  // Position/Speed loop gains
+  void buildGetPositionKp(struct can_frame & out) const { buildReadParam(POSITION_KP, out); }
+  void buildSetPositionKp(float v, struct can_frame & out) const;
+  void buildGetSpeedKp(struct can_frame & out) const { buildReadParam(SPEED_KP, out); }
+  void buildSetSpeedKp(float v, struct can_frame & out) const;
+  void buildGetSpeedKi(struct can_frame & out) const { buildReadParam(SPEED_KI, out); }
+  void buildSetSpeedKi(float v, struct can_frame & out) const;
 
-  // Enable motor (type 3). Returns first type-2 status on success.
-  [[nodiscard]] Result<Status> enableMotor(int timeout_ms = kDefaultTimeoutMs);
+  // ===== Frame-driven updaters (no existing structs used) =====
+  // Parse and update internal status fields from a status frame (type==2)
+  bool updateFromStatusFrame(const struct can_frame & in, bool type_check = true);
+  // Parse and update UID from device-id response (type==0, low8==0xFE); uses motor_id_
+  bool updateFromDeviceIdResp(const struct can_frame & in, bool type_check = true);
+  // Parse and update fault/warning snapshot from type==21 response (uses host_id_)
+  bool updateFromFaultWarningResp(const struct can_frame & in, bool type_check = true);
+  // Parse and update any known parameter value from type==17 read-param response (uses host_id_)
+  bool updateFromReadParamResp(const struct can_frame & in, bool type_check = true);
 
-  // Set mechanical zero (type 6, Byte[0]=1). Returns first type-2 status on success.
-  [[nodiscard]] Result<Status> setMechanicalZero(int timeout_ms = kDefaultTimeoutMs);
+  // Dispatch a received frame by its type and update internal state accordingly.
+  // Returns which kind of update was applied (or None if not applicable).
+  enum class UpdateKind : uint8_t { None = 0, DeviceId, Status, FaultWarning, ReadParam, Ignored };
+  UpdateKind dispatchAndUpdate(const struct can_frame & in);
 
-  // Set motor CAN_ID immediately on device (type 7). Returns device UID on success.
-  // Local `motor_id_` is updated only on success.
-  [[nodiscard]] Result<std::array<uint8_t, kUidLen>> changeMotorId(
-    uint8_t new_motor_id, int timeout_ms = kDefaultTimeoutMs) noexcept;
+  // ===== Status getters =====
+  float angle_rad() const { return angle_rad_; }
+  float vel_rad_s() const { return vel_rad_s_; }
+  float torque_Nm() const { return torque_Nm_; }
+  float temperature_c() const { return temperature_c_; }
+  uint8_t motor_can_id() const { return motor_can_id_; }
+  uint8_t mode() const { return mode_; }
+  uint8_t fault_bits() const { return fault_bits_; }
+  uint32_t raw_eff_id() const { return raw_eff_id_; }
 
-  // Request fault/warning snapshot (type 21). Returns snapshot on success.
-  [[nodiscard]] Result<FaultWarning> requestFaultWarning(int timeout_ms = kDefaultTimeoutMs);
+  // ===== Fault/Warning getters =====
+  uint32_t faults_bits() const { return faults_bits_; }
+  uint32_t warnings_bits() const { return warnings_bits_; }
 
-  // NOTE: Baud rate change is disabled intentionally.
-  // Please refer to the document process to modify it carefully.
-  // Operation errors may cause problems such as being unable to connect to
-  // the motor and being unable to upgrade.
-  //  Baud rate change (type 22).
-  //  [[nodiscard]] Result<std::array<uint8_t, kUidLen>> setBaudRate(uint8_t code);
+  // ===== UID getter =====
+  const std::array<uint8_t, kUidLen> & uid() const { return uid_; }
 
-  // ========= Generic parameter R/W (type 17/18) =========
-  [[nodiscard]] Result<std::array<uint8_t, 4>> readParamRaw(
-    uint16_t index, int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> writeParamRaw(
-    uint16_t index, const std::array<uint8_t, 4> & data, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> readParamFloat(uint16_t index, int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> writeParamFloat(
-    uint16_t index, float value, int timeout_ms = kDefaultTimeoutMs);
-
-  // Convenience setters via parameter indices (4.2)
-  [[nodiscard]] Result<uint8_t> getRunMode(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setRunMode(RunMode mode, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getIqReference(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setIqReference(float amps, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getSpeedReference(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setSpeedReference(float rad_s, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getTorqueLimit(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setTorqueLimit(float nm, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getCurrentKp(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setCurrentKp(float v, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getCurrentKi(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setCurrentKi(float v, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getCurrentFilterGain(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setCurrentFilterGain(float v, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getPositionReference(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setPositionReference(float rad, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getSpeedLimit(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setSpeedLimit(float rad_s, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getCurrentLimit(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setCurrentLimit(float amps, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<int16_t> getRotationTurns(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setRotationTurns(int16_t turns, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getPositionKp(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setPositionKp(float v, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getSpeedKp(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setSpeedKp(float v, int timeout_ms = kDefaultTimeoutMs);
-
-  [[nodiscard]] Result<float> getSpeedKi(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<Status> setSpeedKi(float v, int timeout_ms = kDefaultTimeoutMs);
-
-  // The following are read-only parameters
-  [[nodiscard]] Result<float> getMechanicalPosition(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<float> getIqFilter(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<float> getMechanicalVelocity(int timeout_ms = kDefaultTimeoutMs);
-  [[nodiscard]] Result<float> getBusVoltage(int timeout_ms = kDefaultTimeoutMs);
+  // ===== Parameter getters (mirror) =====
+  uint32_t run_mode() const { return run_mode_; }
+  float iq_reference() const { return iq_reference_; }
+  float speed_reference() const { return speed_reference_; }
+  float torque_limit() const { return torque_limit_; }
+  float current_kp() const { return current_kp_; }
+  float current_ki() const { return current_ki_; }
+  float current_filter_gain() const { return current_filter_gain_; }
+  float position_reference() const { return position_reference_; }
+  float speed_limit() const { return speed_limit_; }
+  float current_limit() const { return current_limit_; }
+  float mechanical_position() const { return mechanical_position_; }
+  float iq_filter() const { return iq_filter_; }
+  float mechanical_velocity() const { return mechanical_velocity_; }
+  float bus_voltage() const { return bus_voltage_; }
+  int16_t rotation_turns() const { return rotation_turns_; }
+  float position_kp() const { return position_kp_; }
+  float speed_kp() const { return speed_kp_; }
+  float speed_ki() const { return speed_ki_; }
 
 private:
-  yy_socket_can::SocketCAN can_;
-  std::string ifname_{};
-  uint8_t host_id_{0x01};
-  uint8_t motor_id_{0x01};
-  bool verbose_{false};
-  int rcvbuf_bytes_{-1};
-  int sndbuf_bytes_{-1};
+  // IDs
+  uint8_t host_id_{};
+  uint8_t motor_id_{};
 
-  void debugPrintFrame(const struct can_frame & f) const;
+  // Status mirror (from status frames)
+  float angle_rad_{0.0f};
+  float vel_rad_s_{0.0f};
+  float torque_Nm_{0.0f};
+  float temperature_c_{0.0f};
+  uint8_t motor_can_id_{0};
+  uint8_t mode_{0};
+  uint8_t fault_bits_{0};
+  uint32_t raw_eff_id_{0};
+
+  // Fault/Warning snapshot
+  uint32_t faults_bits_{0};
+  uint32_t warnings_bits_{0};
+
+  // UID
+  std::array<uint8_t, kUidLen> uid_{};
+
+  // Parameter mirrors
+  uint32_t run_mode_{0};
+  float iq_reference_{0.0f};
+  float speed_reference_{0.0f};
+  float torque_limit_{0.0f};
+  float current_kp_{0.0f};
+  float current_ki_{0.0f};
+  float current_filter_gain_{0.0f};
+  float position_reference_{0.0f};
+  float speed_limit_{0.0f};
+  float current_limit_{0.0f};
+  float mechanical_position_{0.0f};
+  float iq_filter_{0.0f};
+  float mechanical_velocity_{0.0f};
+  float bus_voltage_{0.0f};
+  int16_t rotation_turns_{0};
+  float position_kp_{0.0f};
+  float speed_kp_{0.0f};
+  float speed_ki_{0.0f};
+
+  // Local helpers
+  static constexpr float kPi_ = 3.14159265358979323846f;
 };
 
 }  // namespace yy_cybergear
 
-#endif  // YY_CYBERGEAR__CYBERGEAR_HPP_
+#endif  // YY_CYBERGEAR__CYBERGEAR_V2_HPP_

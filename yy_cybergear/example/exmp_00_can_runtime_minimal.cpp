@@ -28,8 +28,7 @@
 #include <thread>
 
 #include "yy_socket_can/can_runtime.hpp"
-#include "yy_cybergear/data_frame_handler.hpp"
-#include "yy_cybergear/protocol_types.hpp"
+#include "yy_cybergear/cybergear.hpp"
 // clang-format on
 
 namespace
@@ -37,18 +36,18 @@ namespace
 std::atomic<bool> g_running{true};
 void handle_sigint(int) { g_running = false; }
 
-void print_status(const yy_cybergear::Status & st, double t_sec)
+void print_status(const yy_cybergear::CyberGear & cg, double t_sec)
 {
   std::cout << std::fixed << std::setprecision(3) << " t=" << t_sec << "s"
-            << " ang=" << st.angle_rad << "rad"
-            << " vel=" << st.vel_rad_s << "rad/s"
-            << " tau=" << st.torque_Nm << "Nm"
-            << " T=" << st.temperature_c << "C"
-            << " mode=" << static_cast<unsigned>(st.mode) << " faults=0b" << std::uppercase
+            << " ang=" << cg.angle_rad() << "rad"
+            << " vel=" << cg.vel_rad_s() << "rad/s"
+            << " tau=" << cg.torque_Nm() << "Nm"
+            << " T=" << cg.temperature_c() << "C"
+            << " mode=" << static_cast<unsigned>(cg.mode()) << " faults=0b" << std::uppercase
             << std::hex << std::setw(2) << std::setfill('0')
-            << static_cast<unsigned>(st.fault_bits) << std::dec << " mid=0x" << std::uppercase
+            << static_cast<unsigned>(cg.fault_bits()) << std::dec << " mid=0x" << std::uppercase
             << std::hex << std::setw(2) << std::setfill('0')
-            << static_cast<unsigned>(st.motor_can_id) << std::dec << '\n';
+            << static_cast<unsigned>(cg.motor_can_id()) << std::dec << '\n';
 }
 }  // namespace
 
@@ -106,34 +105,30 @@ int main(int argc, char ** argv)
   rt.setWarningLogger([](const std::string & m) { std::cerr << m << std::endl; });
   rt.addChannel(ifname);
 
-  // Register a handler for all type-2 frames of the specified motor id.
-  // ID layout (type-2):
-  // bits 28..24: type (=2)
-  // bits 23..22: mode (2 bits)
-  // bits 21..16: fault bits (6 bits)
-  // bits 15..8:  motor id
-  // bits 7..0:   (unused/host)
-  const uint32_t base = (static_cast<uint32_t>(2u) << 24) | (static_cast<uint32_t>(motor) << 8);
-  const uint32_t min_id = base;
-  const uint32_t max_id = (static_cast<uint32_t>(2u) << 24) | (static_cast<uint32_t>(3u) << 22) |
-                          (static_cast<uint32_t>(0x3Fu) << 16) |
-                          (static_cast<uint32_t>(motor) << 8) | 0xFFu;
+  // Register a handler for all extended CAN IDs and filter in user-space via dispatchAndUpdate.
+  const uint32_t min_id = 0u;
+  const uint32_t max_id = CAN_EFF_MASK;
 
-  using yy_cybergear::Status;
-  using yy_cybergear::data_frame_handler::parseStatus;
+  yy_cybergear::CyberGear cg{host, motor};
   using clock = std::chrono::steady_clock;
   const auto t0 = clock::now();
 
-  rt.registerHandler(min_id, max_id, [verbose, t0](const struct can_frame & f) {
-    Status st{};
-    if (!parseStatus(f, st)) return;  // Shouldn't happen due to range filter
+  rt.registerHandler(min_id, max_id, [verbose, t0, &cg](const struct can_frame & f) {
+    const auto kind = cg.dispatchAndUpdate(f);
+    if (
+      kind == yy_cybergear::CyberGear::UpdateKind::Ignored ||
+      kind == yy_cybergear::CyberGear::UpdateKind::None) {
+      return;
+    }
     const double t = std::chrono::duration<double>(clock::now() - t0).count();
     if (verbose) {
       const uint32_t id = f.can_id & CAN_EFF_MASK;
       std::cout << "RX 0x" << std::hex << std::uppercase << id << std::dec
                 << " dlc=" << int(f.can_dlc) << "\n";
     }
-    print_status(st, t);
+    if (kind == yy_cybergear::CyberGear::UpdateKind::Status) {
+      print_status(cg, t);
+    }
   });
 
   // Start runtime and wait
@@ -143,7 +138,6 @@ int main(int argc, char ** argv)
             << ", poll ClearFaults at " << rate_hz << " Hz. Press Ctrl+C to stop..." << '\n';
 
   // Periodically post ClearFaults requests similar to exmp_02
-  using yy_cybergear::data_frame_handler::buildClearFaultsReq;
   const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
   while (g_running) {
     const auto start = clock::now();
@@ -152,7 +146,7 @@ int main(int argc, char ** argv)
     struct can_frame tx
     {
     };
-    buildClearFaultsReq(host, motor, tx);
+    cg.buildClearFaults(tx);
     rt.post(yy_socket_can::TxRequest{ifname, tx});
     if (verbose) {
       const uint32_t id = tx.can_id & CAN_EFF_MASK;
