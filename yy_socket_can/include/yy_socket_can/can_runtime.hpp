@@ -47,7 +47,6 @@ public:
   using Ptr = std::shared_ptr<CanRuntime>;
 
   // Minimal interval between consecutive TX frames (microseconds).
-  // Change this to tune pacing; used by tx_worker.
   static constexpr int kTxInterFrameDelayUs = 1000;
 
   explicit CanRuntime(bool enable_can_fd = false);
