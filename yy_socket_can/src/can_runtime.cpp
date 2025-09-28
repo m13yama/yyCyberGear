@@ -123,7 +123,7 @@ void CanRuntime::rx_worker(Channel * ch)
   };
   while (running_.load() && ch->running.load()) {
     try {
-      if (!ch->sock.recv(frame, /*timeout_ms=*/200)) {
+      if (!ch->sock.recv(frame)) {
         continue;  // timeout
       }
       dispatcher_.dispatch(frame);

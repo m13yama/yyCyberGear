@@ -66,7 +66,7 @@ int main(int argc, char ** argv)
   bool verbose = false;
 
   double speed_rad_s = 2.0;  // target speed [rad/s]
-  int rate_hz = 10;          // control loop rate [Hz]
+  int rate_hz = 100;         // control loop rate [Hz]
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
