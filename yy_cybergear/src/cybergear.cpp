@@ -189,14 +189,7 @@ bool CyberGear::updateFromStatusFrame(const struct can_frame & in, bool type_che
   }
   {
     std::lock_guard<std::mutex> lk(mu_);
-    angle_rad_ = s.angle_rad;
-    vel_rad_s_ = s.vel_rad_s;
-    torque_Nm_ = s.torque_Nm;
-    temperature_c_ = s.temperature_c;
-    motor_can_id_ = s.motor_can_id;
-    status_mode_ = s.status_mode;
-    status_fault_bits_ = s.fault_bits;
-    raw_eff_id_ = s.raw_eff_id;
+    status_ = s;
     status_initialized_ = true;
   }
   return true;

@@ -48,15 +48,7 @@ public:
     std::lock_guard<std::mutex> lk(other.mu_);
     host_id_ = other.host_id_;
     motor_id_ = other.motor_id_;
-
-    angle_rad_ = other.angle_rad_;
-    vel_rad_s_ = other.vel_rad_s_;
-    torque_Nm_ = other.torque_Nm_;
-    temperature_c_ = other.temperature_c_;
-    motor_can_id_ = other.motor_can_id_;
-    status_mode_ = other.status_mode_;
-    status_fault_bits_ = other.status_fault_bits_;
-    raw_eff_id_ = other.raw_eff_id_;
+    status_ = other.status_;
 
     fault_bits_agg_ = other.fault_bits_agg_;
     warning_bits_agg_ = other.warning_bits_agg_;
@@ -89,15 +81,7 @@ public:
       std::scoped_lock lk(mu_, other.mu_);
       host_id_ = other.host_id_;
       motor_id_ = other.motor_id_;
-
-      angle_rad_ = other.angle_rad_;
-      vel_rad_s_ = other.vel_rad_s_;
-      torque_Nm_ = other.torque_Nm_;
-      temperature_c_ = other.temperature_c_;
-      motor_can_id_ = other.motor_can_id_;
-      status_mode_ = other.status_mode_;
-      status_fault_bits_ = other.status_fault_bits_;
-      raw_eff_id_ = other.raw_eff_id_;
+      status_ = other.status_;
 
       fault_bits_agg_ = other.fault_bits_agg_;
       warning_bits_agg_ = other.warning_bits_agg_;
@@ -266,50 +250,49 @@ public:
   [[nodiscard]] Status getStatus() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return Status{angle_rad_,    vel_rad_s_,   torque_Nm_,         temperature_c_,
-                  motor_can_id_, status_mode_, status_fault_bits_, raw_eff_id_};
+    return status_;
   }
 
   // Backward-compatible per-field getters (thread-safe)
   float angle_rad() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return angle_rad_;
+    return status_.angle_rad;
   }
   float vel_rad_s() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return vel_rad_s_;
+    return status_.vel_rad_s;
   }
   float torque_Nm() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return torque_Nm_;
+    return status_.torque_Nm;
   }
   float temperature_c() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return temperature_c_;
+    return status_.temperature_c;
   }
   uint8_t motor_can_id() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return motor_can_id_;
+    return status_.motor_can_id;
   }
   Status::StatusMode status_mode() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return status_mode_;
+    return status_.status_mode;
   }
   uint8_t fault_bits() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return status_fault_bits_;
+    return status_.fault_bits;
   }
   uint32_t raw_eff_id() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return raw_eff_id_;
+    return status_.raw_eff_id;
   }
 
   // ===== Fault/Warning getters =====
@@ -466,14 +449,7 @@ private:
   uint8_t motor_id_{};
 
   // Status mirror (from status frames)
-  float angle_rad_{0.0f};
-  float vel_rad_s_{0.0f};
-  float torque_Nm_{0.0f};
-  float temperature_c_{0.0f};
-  uint8_t motor_can_id_{0};
-  Status::StatusMode status_mode_{Status::StatusMode::Reset};
-  uint8_t status_fault_bits_{0};
-  uint32_t raw_eff_id_{0};
+  Status status_{};
 
   // Fault/Warning snapshot
   uint32_t fault_bits_agg_{0};
