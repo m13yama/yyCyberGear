@@ -148,6 +148,9 @@ void CanRuntime::tx_worker()
       // Adjust this value by changing CanRuntime::kTxInterFrameDelayMs.
       std::this_thread::sleep_for(std::chrono::milliseconds(CanRuntime::kTxInterFrameDelayMs));
     } catch (const std::exception & e) {
+      if (!running_.load()) {
+        break;  // exit quietly during shutdown
+      }
       std::cerr << "[CanRuntime] TX error on " << req.channel << ": " << e.what()
                 << ", aborting runtime" << std::endl;
       // Emergency stop on send error
@@ -169,6 +172,9 @@ void CanRuntime::rx_worker(Channel * ch)
       }
       dispatcher_.dispatch(frame);
     } catch (const std::exception & e) {
+      if (!running_.load() || !ch->running.load()) {
+        break;  // exit quietly during shutdown
+      }
       std::cerr << "[CanRuntime] RX error on " << ch->sock.ifname() << ": " << e.what()
                 << ", aborting runtime" << std::endl;
       // Emergency stop on RX error
