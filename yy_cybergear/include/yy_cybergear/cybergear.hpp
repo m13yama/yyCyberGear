@@ -227,16 +227,12 @@ public:
   void buildSetSpeedKi(float v, struct can_frame & out) const noexcept;
 
   // ===== Frame-driven updaters (no existing structs used) =====
-  // Parse and update internal status fields from a status frame (type==2)
   [[nodiscard]] bool updateFromStatusFrame(
     const struct can_frame & in, bool type_check = true) noexcept;
-  // Parse and update UID from device-id response (type==0, low8==0xFE); uses motor_id_
   [[nodiscard]] bool updateFromDeviceIdResp(
     const struct can_frame & in, bool type_check = true) noexcept;
-  // Parse and update fault/warning snapshot from type==21 response (uses host_id_)
   [[nodiscard]] bool updateFromFaultWarningResp(
     const struct can_frame & in, bool type_check = true) noexcept;
-  // Parse and update any known parameter value from type==17 read-param response (uses host_id_)
   [[nodiscard]] bool updateFromReadParamResp(
     const struct can_frame & in, bool type_check = true) noexcept;
 
