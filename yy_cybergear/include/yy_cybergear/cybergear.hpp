@@ -264,24 +264,12 @@ public:
   [[nodiscard]] UpdateKind dispatchAndUpdate(const struct can_frame & in) noexcept;
 
   // ===== Status getters =====
-  struct StatusSnapshot
-  {
-    float angle_rad{0.0f};
-    float vel_rad_s{0.0f};
-    float torque_Nm{0.0f};
-    float temperature_c{0.0f};
-    uint8_t motor_can_id{0};
-    uint8_t mode{0};
-    uint8_t fault_bits{0};
-    uint32_t raw_eff_id{0};
-  };
-
-  // Thread-safe snapshot of status fields
-  [[nodiscard]] StatusSnapshot getStatus() const noexcept
+  // Thread-safe snapshot of status fields, using the shared Status type
+  [[nodiscard]] Status getStatus() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return StatusSnapshot{angle_rad_,    vel_rad_s_, torque_Nm_,         temperature_c_,
-                          motor_can_id_, mode_,      status_fault_bits_, raw_eff_id_};
+    return Status{angle_rad_,    vel_rad_s_, torque_Nm_,         temperature_c_,
+                  motor_can_id_, mode_,      status_fault_bits_, raw_eff_id_};
   }
 
   // Backward-compatible per-field getters (thread-safe)
