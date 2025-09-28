@@ -15,36 +15,37 @@ set(TARGET cybergear)
 ament_auto_add_library(${TARGET} SHARED
   src/${TARGET}.cpp
   src/data_frame_handler.cpp
+  src/logging.cpp
 )
 unset(TARGET)
 
-# exmp_01_get_mcu_id ============================
-set(TARGET exmp_01_get_mcu_id)
+# exmp_01_monitor_status ============================
+set(TARGET exmp_01_monitor_status)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
-# exmp_02_monitor_status ============================
-set(TARGET exmp_02_monitor_status)
+# exmp_02_operation_sin_wave ============================
+set(TARGET exmp_02_operation_sin_wave)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
-# exmp_03_operation_sin_wave ============================
-set(TARGET exmp_03_operation_sin_wave)
+# exmp_03_position_sin_wave ============================
+set(TARGET exmp_03_position_sin_wave)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
-# exmp_04_position_sin_wave ============================
-set(TARGET exmp_04_position_sin_wave)
+# exmp_04_speed_constant ============================
+set(TARGET exmp_04_speed_constant)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
-# exmp_05_speed_constant ============================
-set(TARGET exmp_05_speed_constant)
+# exmp_05_current_constant ============================
+set(TARGET exmp_05_current_constant)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
-# exmp_06_current_constant ============================
-set(TARGET exmp_06_current_constant)
+# exmp_06_position_follow ============================
+set(TARGET exmp_06_position_follow)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 

@@ -156,13 +156,13 @@ TEST(StatusHandler, ParseStatusFrame)
   packBE16(&f.data[6], 250);
 
   yyc::Status s{};
-  ASSERT_TRUE(yyc::parseStatus(f, s));
+  ASSERT_TRUE(yyc::parseStatus(f, host_id, motor_id, s));
   EXPECT_NEAR(s.angle_rad, 0.0f, 2.0e-4f);
   EXPECT_NEAR(s.vel_rad_s, 0.0f, 6.0e-4f);
   EXPECT_NEAR(s.torque_Nm, 0.0f, 2.0e-4f);
   EXPECT_FLOAT_EQ(s.temperature_c, 25.0f);
   EXPECT_EQ(s.motor_can_id, motor_id);
-  EXPECT_EQ(s.mode, mode);
+  EXPECT_EQ(static_cast<uint8_t>(s.status_mode), mode);
   EXPECT_EQ(s.fault_bits, static_cast<uint8_t>(faults & 0x3F));
   EXPECT_EQ(s.raw_eff_id, eid);
 
@@ -170,7 +170,7 @@ TEST(StatusHandler, ParseStatusFrame)
   can_frame f2 = f;
   const uint32_t bad = (static_cast<uint32_t>(3u) << 24) | (eid & 0x00FFFFFFu);
   f2.can_id = bad | CAN_EFF_FLAG;
-  EXPECT_FALSE(yyc::parseStatus(f2, s));
+  EXPECT_FALSE(yyc::parseStatus(f2, host_id, motor_id, s));
 }
 
 TEST(DeviceIdHandler, ParseMcuIdResponse)
@@ -178,34 +178,34 @@ TEST(DeviceIdHandler, ParseMcuIdResponse)
   can_frame f{};
   // type==0, low8==0xFE, mid bytes contain motor id (either hi or lo)
   const uint8_t motor_id = 0x33;
-  const uint8_t other_mid = 0x77;
-  const uint32_t eid = (0u << 24) | (static_cast<uint32_t>(other_mid) << 16) |
+  const uint8_t host_id = 0x77;  // Strict: host id in bits 23..16
+  const uint32_t eid = (0u << 24) | (static_cast<uint32_t>(host_id) << 16) |
                        (static_cast<uint32_t>(motor_id) << 8) | 0xFEu;
   f.can_id = eid | CAN_EFF_FLAG;
-  f.can_dlc = yyc::kUidLen;
-  std::array<uint8_t, yyc::kUidLen> uid{};
-  for (int i = 0; i < yyc::kUidLen; ++i) {
+  f.can_dlc = yy_cybergear::can_dlc::DeviceIdResp;
+  std::array<uint8_t, yy_cybergear::can_dlc::DeviceIdResp> uid{};
+  for (int i = 0; i < yy_cybergear::can_dlc::DeviceIdResp; ++i) {
     const uint8_t v = static_cast<uint8_t>(i * 3 + 1);
     f.data[i] = v;
     uid[i] = v;
   }
 
-  std::array<uint8_t, yyc::kUidLen> out{};
-  ASSERT_TRUE(yyc::parseDeviceIdResp(f, motor_id, out));
+  std::array<uint8_t, yy_cybergear::can_dlc::DeviceIdResp> out{};
+  ASSERT_TRUE(yyc::parseDeviceIdResp(f, host_id, motor_id, out));
   EXPECT_EQ(out, uid);
 
   // Negative: low8 not 0xFE
   can_frame fbad = f;
   const uint32_t wrong_fe = (eid & ~0xFFu) | 0xAAu;
   fbad.can_id = wrong_fe | CAN_EFF_FLAG;
-  EXPECT_FALSE(yyc::parseDeviceIdResp(fbad, motor_id, out));
+  EXPECT_FALSE(yyc::parseDeviceIdResp(fbad, host_id, motor_id, out));
 
-  // Alternative: motor id in high middle byte also passes
+  // Strict: motor id is expected in bits 15..8; swapping should fail
   can_frame f_hi = f;
   const uint32_t eid_hi = (0u << 24) | (static_cast<uint32_t>(motor_id) << 16) |
-                          (static_cast<uint32_t>(other_mid) << 8) | 0xFEu;
+                          (static_cast<uint32_t>(host_id) << 8) | 0xFEu;
   f_hi.can_id = eid_hi | CAN_EFF_FLAG;
-  EXPECT_TRUE(yyc::parseDeviceIdResp(f_hi, motor_id, out));
+  EXPECT_FALSE(yyc::parseDeviceIdResp(f_hi, host_id, motor_id, out));
 }
 
 TEST(FaultWarningHandler, ParseFaultWarningResponse)
@@ -224,21 +224,23 @@ TEST(FaultWarningHandler, ParseFaultWarningResponse)
   packLE32(&f.data[4], warns);
 
   yyc::FaultWarning fw{};
-  ASSERT_TRUE(yyc::parseFaultWarningResp(f, host, fw));
+  ASSERT_TRUE(yyc::parseFaultWarningResp(f, host, motor, fw));
   EXPECT_EQ(fw.faults, faults);
   EXPECT_EQ(fw.warnings, warns);
 
   // Negative: wrong host id
-  EXPECT_FALSE(yyc::parseFaultWarningResp(f, static_cast<uint8_t>(host + 1), fw));
+  EXPECT_FALSE(yyc::parseFaultWarningResp(f, static_cast<uint8_t>(host + 1), motor, fw));
 }
 
 TEST(ReadParamHandler, ParseReadParamResponse)
 {
   can_frame f{};
   const uint8_t host = 0x0A;
+  const uint8_t motor = 0x00;  // strict parser expects motor id; here it's 0 in EID
   const uint16_t index = 0xBEEF;
   const std::array<uint8_t, 4> data{{1, 2, 3, 4}};
-  const uint32_t eid = (static_cast<uint32_t>(17u) << 24) | static_cast<uint32_t>(host);
+  const uint32_t eid = (static_cast<uint32_t>(17u) << 24) | (static_cast<uint32_t>(motor) << 8) |
+                       static_cast<uint32_t>(host);
   f.can_id = eid | CAN_EFF_FLAG;
   f.can_dlc = 8;
   // Little-endian index in response payload
@@ -247,9 +249,11 @@ TEST(ReadParamHandler, ParseReadParamResponse)
   std::memcpy(&f.data[4], data.data(), 4);
 
   std::array<uint8_t, 4> out{};
-  ASSERT_TRUE(yyc::parseReadParamResp(f, host, index, out));
+  uint16_t out_index = 0;
+  ASSERT_TRUE(yyc::parseReadParamResp(f, host, motor, out_index, out));
+  EXPECT_EQ(out_index, index);
   EXPECT_EQ(out, data);
 
-  // Negative: wrong index
-  EXPECT_FALSE(yyc::parseReadParamResp(f, host, static_cast<uint16_t>(index + 1), out));
+  // Negative: wrong host id
+  EXPECT_FALSE(yyc::parseReadParamResp(f, static_cast<uint8_t>(host + 1), motor, out_index, out));
 }

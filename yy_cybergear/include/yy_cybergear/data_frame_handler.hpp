@@ -26,50 +26,40 @@ namespace yy_cybergear
 {
 namespace data_frame_handler
 {
-
-// Pure helper API to build and parse CyberGear CAN frames.
-// Implemented as free functions in a namespace (no classes), suitable for unit testing.
-
 // Expose common types from root namespace for backward compatibility
 using OpCommand = yy_cybergear::OpCommand;
 using Status = yy_cybergear::Status;
 using FaultWarning = yy_cybergear::FaultWarning;
-constexpr int kUidLen = yy_cybergear::kUidLen;
+using DataFrameType = yy_cybergear::DataFrameType;
 
 // ========= Builders =========
-// Type 0: Get device ID request
 void buildGetDeviceIdReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 1: Operation control request
 void buildOpCtrlReq(uint8_t motor_id, const OpCommand & cmd, struct can_frame & out);
-// Type 3: Enable motor request
 void buildEnableReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 4: Stop motor request (data cleared)
 void buildStopReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 4: Clear faults request (Byte[0]=1)
 void buildClearFaultsReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 7: Change motor CAN_ID request
 void buildChangeMotorIdReq(
   uint8_t host_id, uint8_t motor_id, uint8_t new_motor_id, struct can_frame & out);
-// Type 6: Set mechanical zero (Byte[0]=1)
 void buildSetMechanicalZeroReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 17: Read parameter request
 void buildReadParamReq(uint8_t host_id, uint8_t motor_id, uint16_t index, struct can_frame & out);
-// Type 18: Write parameter request
 void buildWriteParamReq(
   uint8_t host_id, uint8_t motor_id, uint16_t index, const std::array<uint8_t, 4> & data,
   struct can_frame & out);
-// Type 22: Set baud rate request
 void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct can_frame & out);
 
 // ========= Parsers =========
-// MCU UID response: bits 28..24 == 0, low 8 bits == 0xFE, middle bytes contain motor id
 bool parseDeviceIdResp(
-  const struct can_frame & in, uint8_t expect_motor_id, std::array<uint8_t, kUidLen> & out_uid);
-bool parseStatus(const struct can_frame & in, Status & out);
-bool parseFaultWarningResp(const struct can_frame & in, uint8_t expect_host_id, FaultWarning & out);
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
+  std::array<uint8_t, yy_cybergear::can_dlc::DeviceIdResp> & out_uid, bool type_check = true);
+bool parseStatus(
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, Status & out,
+  bool type_check = true);
+bool parseFaultWarningResp(
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, FaultWarning & out,
+  bool type_check = true);
 bool parseReadParamResp(
-  const struct can_frame & in, uint8_t expect_host_id, uint16_t expect_index,
-  std::array<uint8_t, 4> & out_data);
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
+  uint16_t & out_index, std::array<uint8_t, 4> & out_data, bool type_check = true);
 
 // ======== ID helpers (for tests) ========
 constexpr uint32_t buildEffId(uint8_t type, uint8_t host_id, uint8_t motor_id) noexcept
@@ -79,6 +69,8 @@ constexpr uint32_t buildEffId(uint8_t type, uint8_t host_id, uint8_t motor_id) n
 }
 
 constexpr bool isExtended(uint32_t can_id) noexcept { return (can_id & CAN_EFF_FLAG) != 0; }
+
+DataFrameType getFrameType(const struct can_frame & in) noexcept;
 
 }  // namespace data_frame_handler
 }  // namespace yy_cybergear
