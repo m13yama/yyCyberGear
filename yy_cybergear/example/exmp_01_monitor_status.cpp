@@ -172,38 +172,6 @@ inline bool wait_for_enter_or_sigint()
   return false;
 }
 
-// Main monitoring loop: print status lines and periodically ClearFaults (runs until SIGINT)
-inline void monitoring_loop(
-  yy_socket_can::CanRuntime & rt, const std::string & ifname,
-  std::vector<yy_cybergear::CyberGear> & cgs, int rate_hz, const Clock::time_point & t0,
-  bool verbose)
-{
-  const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
-  while (g_running) {
-    const auto start = Clock::now();
-    const auto deadline = start + dt_ns;
-    const double t_now = std::chrono::duration<double>(start - t0).count();
-
-    for (const auto & cg : cgs) {
-      print_status(cg, t_now);
-    }
-
-    for (auto & cg : cgs) {
-      struct can_frame tx
-      {
-      };
-      cg.buildClearFaults(tx);
-      rt.post(yy_socket_can::TxRequest{ifname, tx});
-      if (verbose) {
-        const uint32_t id = tx.can_id & CAN_EFF_MASK;
-        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (ClearFaults)"
-                  << std::endl;
-      }
-    }
-
-    std::this_thread::sleep_until(deadline);
-  }
-}
 }  // namespace
 
 int main(int argc, char ** argv)
@@ -328,8 +296,34 @@ int main(int argc, char ** argv)
     return EXIT_SUCCESS;
   }
 
-  // Periodically post ClearFaults requests similar to exmp_02
-  monitoring_loop(rt, ifname, cgs, rate_hz, t0, verbose);
+  // Periodically post ClearFaults requests
+  {
+    const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
+    while (g_running) {
+      const auto start = Clock::now();
+      const auto deadline = start + dt_ns;
+      const double t_now = std::chrono::duration<double>(start - t0).count();
+
+      for (const auto & cg : cgs) {
+        print_status(cg, t_now);
+      }
+
+      for (auto & cg : cgs) {
+        struct can_frame tx
+        {
+        };
+        cg.buildClearFaults(tx);
+        rt.post(yy_socket_can::TxRequest{ifname, tx});
+        if (verbose) {
+          const uint32_t id = tx.can_id & CAN_EFF_MASK;
+          std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (ClearFaults)"
+                    << std::endl;
+        }
+      }
+
+      std::this_thread::sleep_until(deadline);
+    }
+  }
 
   rt.stop();
   return EXIT_SUCCESS;
