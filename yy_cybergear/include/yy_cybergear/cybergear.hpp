@@ -30,7 +30,6 @@ namespace yy_cybergear
 class CyberGear
 {
 public:
-  // Backward-compatible alias
   using RunMode = yy_cybergear::RunMode;
   explicit CyberGear(uint8_t host_id, uint8_t motor_id) noexcept
   : host_id_(host_id), motor_id_(motor_id)
@@ -226,7 +225,7 @@ public:
   void buildGetSpeedKi(struct can_frame & out) const noexcept { buildReadParam(SPEED_KI, out); }
   void buildSetSpeedKi(float v, struct can_frame & out) const noexcept;
 
-  // ===== Frame-driven updaters (no existing structs used) =====
+  // ===== Frame-driven updaters =====
   [[nodiscard]] bool updateFromStatusFrame(
     const struct can_frame & in, bool type_check = true) noexcept;
   [[nodiscard]] bool updateFromDeviceIdResp(
@@ -242,70 +241,23 @@ public:
   [[nodiscard]] UpdateKind dispatchAndUpdate(const struct can_frame & in) noexcept;
 
   // ===== Status getters =====
-  // Thread-safe snapshot of status fields, using the shared Status type
   [[nodiscard]] Status getStatus() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return status_;
   }
 
-  // Backward-compatible per-field getters (thread-safe)
-  float angle_rad() const noexcept
-  {
-    std::lock_guard<std::mutex> lk(mu_);
-    return status_.angle_rad;
-  }
-  float vel_rad_s() const noexcept
-  {
-    std::lock_guard<std::mutex> lk(mu_);
-    return status_.vel_rad_s;
-  }
-  float torque_Nm() const noexcept
-  {
-    std::lock_guard<std::mutex> lk(mu_);
-    return status_.torque_Nm;
-  }
-  float temperature_c() const noexcept
-  {
-    std::lock_guard<std::mutex> lk(mu_);
-    return status_.temperature_c;
-  }
-  uint8_t motor_can_id() const noexcept
-  {
-    std::lock_guard<std::mutex> lk(mu_);
-    return status_.motor_can_id;
-  }
-  Status::StatusMode status_mode() const noexcept
-  {
-    std::lock_guard<std::mutex> lk(mu_);
-    return status_.status_mode;
-  }
-  uint8_t fault_bits() const noexcept
-  {
-    std::lock_guard<std::mutex> lk(mu_);
-    return status_.fault_bits;
-  }
-  uint32_t raw_eff_id() const noexcept
-  {
-    std::lock_guard<std::mutex> lk(mu_);
-    return status_.raw_eff_id;
-  }
-
   // ===== Fault/Warning getters =====
-  uint32_t faults_bits() const noexcept
+  uint32_t fault_bits_agg() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return fault_bits_agg_;
   }
-  uint32_t warnings_bits() const noexcept
+  uint32_t warning_bits_agg() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return warning_bits_agg_;
   }
-
-  // New descriptive accessors (non-breaking: keep old ones above)
-  uint32_t fault_bits_agg() const noexcept { return faults_bits(); }
-  uint32_t warning_bits_agg() const noexcept { return warnings_bits(); }
 
   // ===== UID getter =====
   std::array<uint8_t, yy_cybergear::can_dlc::DeviceIdResp> uid() const noexcept
@@ -412,19 +364,16 @@ public:
   }
 
   // ===== Initialization flags helpers =====
-  // True after the first status frame has been applied
   [[nodiscard]] bool isStatusInitialized() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return status_initialized_;
   }
-  // True if a given parameter index has been received at least once via ReadParam response
   [[nodiscard]] bool isParamInitialized(uint16_t index) const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return initialized_params_.find(index) != initialized_params_.end();
   }
-  // Convenience: check a list of indices; optionally require UID as well
   [[nodiscard]] bool isInitializedFor(
     const std::vector<uint16_t> & indices, bool require_uid = true) const noexcept
   {
@@ -437,7 +386,6 @@ public:
   }
 
 private:
-  // Synchronization for concurrent readers/writers (RX thread vs user thread)
   mutable std::mutex mu_;
 
   // IDs
@@ -477,7 +425,7 @@ private:
 
   // Initialization bookkeeping
   bool status_initialized_{false};
-  std::unordered_set<uint16_t> initialized_params_{};  // indices seen in ReadParam responses
+  std::unordered_set<uint16_t> initialized_params_{};
 
   // Local helpers
   static constexpr float kPi_ = 3.14159265358979323846f;
