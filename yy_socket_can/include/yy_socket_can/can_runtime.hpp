@@ -15,10 +15,6 @@
 #ifndef __YY_SOCKET_CAN_CAN_RUNTIME_HPP__
 #define __YY_SOCKET_CAN_CAN_RUNTIME_HPP__
 
-#include "yy_socket_can/can_dispatcher.hpp"
-#include "yy_socket_can/socket_can.hpp"
-#include "yy_socket_can/thread_safe_queue.hpp"
-
 #include <linux/can.h>
 
 #include <atomic>
@@ -30,6 +26,10 @@
 #include <thread>
 #include <utility>
 #include <vector>
+
+#include "yy_socket_can/can_dispatcher.hpp"
+#include "yy_socket_can/socket_can.hpp"
+#include "yy_socket_can/thread_safe_queue.hpp"
 
 namespace yy_socket_can
 {

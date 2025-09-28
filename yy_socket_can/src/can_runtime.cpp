@@ -55,8 +55,7 @@ void CanRuntime::start()
           ch->sock.open();
         } catch (const std::exception & e) {
           // Log and continue; channel will not start
-          std::cerr << "[CanRuntime] Failed to open " << kv.first << ": " << e.what()
-                    << std::endl;
+          std::cerr << "[CanRuntime] Failed to open " << kv.first << ": " << e.what() << std::endl;
           continue;
         }
       }
@@ -119,7 +118,9 @@ void CanRuntime::tx_worker()
 
 void CanRuntime::rx_worker(Channel * ch)
 {
-  struct can_frame frame{};
+  struct can_frame frame
+  {
+  };
   while (running_.load() && ch->running.load()) {
     try {
       if (!ch->sock.recv(frame, /*timeout_ms=*/200)) {
