@@ -87,6 +87,30 @@ struct FaultWarning
 // Control RunMode for buildSetRunMode()
 enum class RunMode : uint32_t { OperationControl = 0, Position = 1, Speed = 2, Current = 3 };
 
+// Human-readable name for control RunMode
+inline std::string run_mode_to_string(RunMode mode)
+{
+  switch (mode) {
+    case RunMode::OperationControl:
+      return "OperationControl";
+    case RunMode::Position:
+      return "Position";
+    case RunMode::Speed:
+      return "Speed";
+    case RunMode::Current:
+      return "Current";
+    default:
+      break;
+  }
+  return std::string("Unknown(") + std::to_string(static_cast<unsigned>(mode)) + ")";
+}
+
+// Convenience overload for legacy numeric values
+inline std::string run_mode_to_string(uint32_t mode)
+{
+  return run_mode_to_string(static_cast<RunMode>(mode));
+}
+
 // Human-readable helpers for decoding status fields (status_mode)
 inline std::string status_mode_to_string(Status::StatusMode status_mode)
 {

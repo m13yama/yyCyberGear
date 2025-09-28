@@ -26,6 +26,8 @@ namespace logging
 std::string format_status_line(const CyberGear & cg, double t_sec)
 {
   const auto s = cg.getStatus();
+  const auto status_str = yy_cybergear::status_mode_to_string(s.status_mode);
+  const auto run_str = yy_cybergear::run_mode_to_string(cg.run_mode());
   std::ostringstream oss;
   oss.setf(std::ios::fixed, std::ios::floatfield);
   oss << std::setprecision(3) << " t=" << t_sec << "s"
@@ -33,7 +35,7 @@ std::string format_status_line(const CyberGear & cg, double t_sec)
       << " vel=" << s.vel_rad_s << "rad/s"
       << " tau=" << s.torque_Nm << "Nm"
       << " T=" << s.temperature_c << "C"
-      << " mode=" << static_cast<unsigned>(s.status_mode) << " faults=0x" << std::uppercase
+      << " status=" << status_str << " run=" << run_str << " faults=0x" << std::uppercase
       << std::hex << std::setw(2) << std::setfill('0')
       << static_cast<unsigned>(s.fault_bits & 0xFFu) << std::dec << " mid=0x" << std::uppercase
       << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(s.motor_can_id)
