@@ -31,5 +31,13 @@ std::string format_status_line(const CyberGear & cg, double t_sec);
 // Includes motor id, uid, and selected limits/gains.
 std::string format_params_summary(const CyberGear & cg);
 
+// ===== String conversions (moved from protocol_types.hpp) =====
+// Convert enums/bitfields to human-readable strings
+std::string runModeToString(RunMode mode);
+std::string runModeToString(uint32_t mode);
+std::string statusModeToString(Status::StatusMode status_mode);
+std::string statusModeToString(uint8_t status_mode);
+std::vector<std::string> faultBitsToString(uint8_t fault_bits);
+
 }  // namespace logging
 }  // namespace yy_cybergear

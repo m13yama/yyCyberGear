@@ -82,6 +82,13 @@ constexpr uint16_t SPEED_KP = 0x701F;
 constexpr uint16_t SPEED_KI = 0x7020;
 
 // ======== Command & status types ========
+enum class RunMode : uint32_t { OperationControl = 0, Position = 1, Speed = 2, Current = 3 };
+
+struct FaultWarning
+{
+  uint32_t faults{0};
+  uint32_t warnings{0};
+};
 struct OpCommand
 {
   float pos_rad{0.0f};
@@ -104,71 +111,6 @@ struct Status
   uint8_t fault_bits{0};
   uint32_t raw_eff_id{0};
 };
-
-struct FaultWarning
-{
-  uint32_t faults{0};
-  uint32_t warnings{0};
-};
-
-enum class RunMode : uint32_t { OperationControl = 0, Position = 1, Speed = 2, Current = 3 };
-
-// ======== Helpers ========
-inline std::string run_mode_to_string(RunMode mode)
-{
-  switch (mode) {
-    case RunMode::OperationControl:
-      return "OperationControl";
-    case RunMode::Position:
-      return "Position";
-    case RunMode::Speed:
-      return "Speed";
-    case RunMode::Current:
-      return "Current";
-    default:
-      break;
-  }
-  return std::string("Unknown(") + std::to_string(static_cast<unsigned>(mode)) + ")";
-}
-
-inline std::string run_mode_to_string(uint32_t mode)
-{
-  return run_mode_to_string(static_cast<RunMode>(mode));
-}
-
-inline std::string status_mode_to_string(Status::StatusMode status_mode)
-{
-  switch (status_mode) {
-    case Status::StatusMode::Reset:
-      return "Reset";
-    case Status::StatusMode::Calibration:
-      return "Calibration";
-    case Status::StatusMode::Run:
-      return "Run";
-    default:
-      break;
-  }
-  return std::string("Unknown(") + std::to_string(static_cast<unsigned>(status_mode)) + ")";
-}
-
-inline std::string status_mode_to_string(uint8_t status_mode)
-{
-  return status_mode_to_string(static_cast<Status::StatusMode>(status_mode & 0x03u));
-}
-
-inline std::vector<std::string> fault_bits_to_string(uint8_t fault_bits)
-{
-  const uint8_t fb = static_cast<uint8_t>(fault_bits & 0x3Fu);
-  std::vector<std::string> out;
-  if (fb & (1u << 0)) out.emplace_back("Undervoltage fault");
-  if (fb & (1u << 1)) out.emplace_back("Overcurrent fault");
-  if (fb & (1u << 2)) out.emplace_back("Over temperature fault");
-  if (fb & (1u << 3)) out.emplace_back("Magnetic encoding failure");
-  if (fb & (1u << 4)) out.emplace_back("HALL encoding failure");
-  if (fb & (1u << 5)) out.emplace_back("not calibrated");
-  return out;
-}
-
 }  // namespace yy_cybergear
 
 #endif  // YY_CYBERGEAR__PROTOCOL_TYPES_HPP_

@@ -26,8 +26,8 @@ namespace logging
 std::string format_status_line(const CyberGear & cg, double t_sec)
 {
   const auto s = cg.getStatus();
-  const auto status_str = yy_cybergear::status_mode_to_string(s.status_mode);
-  const auto run_str = yy_cybergear::run_mode_to_string(cg.run_mode());
+  const auto status_str = statusModeToString(s.status_mode);
+  const auto run_str = runModeToString(cg.run_mode());
   std::ostringstream oss;
   oss.setf(std::ios::fixed, std::ios::floatfield);
   oss << std::setprecision(3) << " t=" << t_sec << "s"
@@ -71,6 +71,59 @@ std::string format_params_summary(const CyberGear & cg)
       << "    speed_ki         = " << cg.speed_ki() << "\n";
 
   return oss.str();
+}
+
+// ===== String conversions (moved from protocol_types.hpp) =====
+std::string runModeToString(RunMode mode)
+{
+  switch (mode) {
+    case RunMode::OperationControl:
+      return "OperationControl";
+    case RunMode::Position:
+      return "Position";
+    case RunMode::Speed:
+      return "Speed";
+    case RunMode::Current:
+      return "Current";
+    default:
+      break;
+  }
+  return std::string("Unknown(") + std::to_string(static_cast<unsigned>(mode)) + ")";
+}
+
+std::string runModeToString(uint32_t mode) { return runModeToString(static_cast<RunMode>(mode)); }
+
+std::string statusModeToString(Status::StatusMode status_mode)
+{
+  switch (status_mode) {
+    case Status::StatusMode::Reset:
+      return "Reset";
+    case Status::StatusMode::Calibration:
+      return "Calibration";
+    case Status::StatusMode::Run:
+      return "Run";
+    default:
+      break;
+  }
+  return std::string("Unknown(") + std::to_string(static_cast<unsigned>(status_mode)) + ")";
+}
+
+std::string statusModeToString(uint8_t status_mode)
+{
+  return statusModeToString(static_cast<Status::StatusMode>(status_mode & 0x03u));
+}
+
+std::vector<std::string> faultBitsToString(uint8_t fault_bits)
+{
+  const uint8_t fb = static_cast<uint8_t>(fault_bits & 0x3Fu);
+  std::vector<std::string> out;
+  if (fb & (1u << 0)) out.emplace_back("Undervoltage fault");
+  if (fb & (1u << 1)) out.emplace_back("Overcurrent fault");
+  if (fb & (1u << 2)) out.emplace_back("Over temperature fault");
+  if (fb & (1u << 3)) out.emplace_back("Magnetic encoding failure");
+  if (fb & (1u << 4)) out.emplace_back("HALL encoding failure");
+  if (fb & (1u << 5)) out.emplace_back("not calibrated");
+  return out;
 }
 
 }  // namespace logging
