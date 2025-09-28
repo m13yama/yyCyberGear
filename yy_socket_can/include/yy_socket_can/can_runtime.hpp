@@ -46,8 +46,8 @@ class CanRuntime
 public:
   using Ptr = std::shared_ptr<CanRuntime>;
 
-  // Minimal interval between consecutive TX frames (microseconds).
   static constexpr int kTxInterFrameDelayUs = 1000;
+  static constexpr int kRxPollTimeoutMs = 1;
 
   explicit CanRuntime(bool enable_can_fd = false);
   ~CanRuntime();
@@ -58,7 +58,7 @@ public:
 
   // Add/open a CAN channel (interface). Safe to call before or after start().
   void add_channel(
-    const std::string & ifname, bool non_blocking = false, int rcvbuf_bytes = -1,
+    const std::string & ifname, bool non_blocking = true, int rcvbuf_bytes = -1,
     int sndbuf_bytes = -1);
 
   // Start background threads

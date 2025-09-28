@@ -149,7 +149,7 @@ void CanRuntime::rx_worker(Channel * ch)
   };
   while (running_.load() && ch->running.load()) {
     try {
-      if (!ch->sock.recv(frame)) {
+      if (!ch->sock.recv(frame, kRxPollTimeoutMs)) {
         continue;  // timeout
       }
       dispatcher_.dispatch(frame);
