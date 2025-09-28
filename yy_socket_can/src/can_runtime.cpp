@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <thread>
 
 namespace yy_socket_can
 {
@@ -110,6 +111,9 @@ void CanRuntime::tx_worker()
 
     try {
       ch->sock.send(req.frame);
+      // Ensure a small gap between consecutive transmissions to avoid bus saturation.
+      // Adjust this value by changing CanRuntime::kTxInterFrameDelayUs.
+      std::this_thread::sleep_for(std::chrono::microseconds(CanRuntime::kTxInterFrameDelayUs));
     } catch (const std::exception & e) {
       std::cerr << "[CanRuntime] TX error on " << req.channel << ": " << e.what() << std::endl;
       // Optional: implement retry/backoff
