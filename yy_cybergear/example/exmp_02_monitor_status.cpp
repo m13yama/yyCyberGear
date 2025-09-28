@@ -229,6 +229,7 @@ int main(int argc, char ** argv)
   }
 
   bool all_ready = false;
+  auto last_retry = clock::now();
   while (g_running && !all_ready) {
     // Check completion using CyberGear's initialized flags
     all_ready = true;
@@ -239,6 +240,43 @@ int main(int argc, char ** argv)
       }
     }
     if (all_ready) break;
+    // Periodically resend outstanding ReadParam/DeviceId requests until all are received
+    const auto now = clock::now();
+    if (now - last_retry >= std::chrono::milliseconds(200)) {
+      last_retry = now;
+      for (std::size_t i = 0; i < cgs.size(); ++i) {
+        const auto & cg = cgs[i];
+        // Re-issue any missing ReadParam indices
+        for (uint16_t idx : preflight_params) {
+          if (!cg.isParamInitialized(idx)) {
+            struct can_frame tx
+            {
+            };
+            cgs[i].buildReadParam(idx, tx);
+            rt.post(yy_socket_can::TxRequest{ifname, tx});
+            if (verbose) {
+              const uint32_t id = tx.can_id & CAN_EFF_MASK;
+              std::cout << "RETRY TX 0x" << std::hex << std::uppercase << id << std::dec
+                        << " (ReadParam 0x" << std::hex << std::uppercase << idx << std::dec
+                        << ")\n";
+            }
+          }
+        }
+        // Re-issue DeviceId if UID not yet received
+        if (!cg.isUidInitialized()) {
+          struct can_frame tx
+          {
+          };
+          cgs[i].buildGetDeviceId(tx);
+          rt.post(yy_socket_can::TxRequest{ifname, tx});
+          if (verbose) {
+            const uint32_t id = tx.can_id & CAN_EFF_MASK;
+            std::cout << "RETRY TX 0x" << std::hex << std::uppercase << id << std::dec
+                      << " (GetDeviceId)\n";
+          }
+        }
+      }
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
 
