@@ -46,8 +46,9 @@ class CanRuntime
 public:
   using Ptr = std::shared_ptr<CanRuntime>;
 
-  static constexpr int kTxInterFrameDelayUs = 1000;
-  static constexpr int kRxPollTimeoutMs = 1;
+  // Time units are milliseconds
+  static constexpr int kTxInterFrameDelayMs = 1;  // gap between consecutive TX frames
+  static constexpr int kRxPollTimeoutMs = 1;      // RX poll timeout
 
   explicit CanRuntime(bool enable_can_fd = false);
   ~CanRuntime();
