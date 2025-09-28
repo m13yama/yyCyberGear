@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include <CLI/CLI.hpp>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -40,6 +41,9 @@ namespace
 std::atomic<bool> g_running{true};
 void handle_sigint(int) { g_running = false; }
 
+// Aliases used across helpers
+using Clock = std::chrono::steady_clock;
+
 // Centralized logging lives in yy_cybergear/logging.hpp
 inline void print_status(const yy_cybergear::CyberGear & cg, double t_sec)
 {
@@ -49,6 +53,158 @@ inline void print_status(const yy_cybergear::CyberGear & cg, double t_sec)
 inline void print_params(const yy_cybergear::CyberGear & cg)
 {
   std::cout << yy_cybergear::logging::format_params_summary(cg);
+}
+
+// Register a wide handler and dispatch frames into all CyberGear mirrors
+inline void register_can_handler(
+  yy_socket_can::CanRuntime & rt, std::vector<yy_cybergear::CyberGear> & cgs, bool verbose)
+{
+  const uint32_t min_id = 0u;
+  const uint32_t max_id = CAN_EFF_MASK;
+  rt.registerHandler(min_id, max_id, [verbose, &cgs](const struct can_frame & f) {
+    for (auto & cg : cgs) (void)cg.dispatchAndUpdate(f);
+    if (verbose) {
+      const uint32_t id = f.can_id & CAN_EFF_MASK;
+      std::cout << "RX 0x" << std::hex << std::uppercase << id << std::dec
+                << " dlc=" << int(f.can_dlc) << "\n";
+    }
+  });
+}
+
+// Preflight: issue initial requests and wait until all are ready (with retries)
+inline void preflight_sync(
+  yy_socket_can::CanRuntime & rt, const std::string & ifname,
+  std::vector<yy_cybergear::CyberGear> & cgs, const std::vector<uint16_t> & preflight_params,
+  bool verbose)
+{
+  // Initial issue of ReadParam and GetDeviceId
+  for (std::size_t i = 0; i < cgs.size(); ++i) {
+    for (uint16_t idx : preflight_params) {
+      struct can_frame tx
+      {
+      };
+      cgs[i].buildReadParam(idx, tx);
+      rt.post(yy_socket_can::TxRequest{ifname, tx});
+      if (verbose) {
+        const uint32_t id = tx.can_id & CAN_EFF_MASK;
+        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (ReadParam 0x"
+                  << std::hex << std::uppercase << idx << std::dec << ")\n";
+      }
+    }
+    struct can_frame tx
+    {
+    };
+    cgs[i].buildGetDeviceId(tx);
+    rt.post(yy_socket_can::TxRequest{ifname, tx});
+    if (verbose) {
+      const uint32_t id = tx.can_id & CAN_EFF_MASK;
+      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (GetDeviceId)\n";
+    }
+  }
+
+  // Wait for completion with periodic retries
+  bool all_ready = false;
+  auto last_retry = Clock::now();
+  while (g_running && !all_ready) {
+    all_ready = true;
+    for (const auto & cg : cgs) {
+      if (!cg.isInitializedFor(preflight_params, /*require_uid=*/true)) {
+        all_ready = false;
+        break;
+      }
+    }
+    if (all_ready) break;
+
+    const auto now = Clock::now();
+    if (now - last_retry >= std::chrono::milliseconds(200)) {
+      last_retry = now;
+      for (std::size_t i = 0; i < cgs.size(); ++i) {
+        const auto & cg = cgs[i];
+        for (uint16_t idx : preflight_params) {
+          if (!cg.isParamInitialized(idx)) {
+            struct can_frame tx
+            {
+            };
+            cgs[i].buildReadParam(idx, tx);
+            rt.post(yy_socket_can::TxRequest{ifname, tx});
+            if (verbose) {
+              const uint32_t id = tx.can_id & CAN_EFF_MASK;
+              std::cout << "RETRY TX 0x" << std::hex << std::uppercase << id << std::dec
+                        << " (ReadParam 0x" << std::hex << std::uppercase << idx << std::dec
+                        << ")\n";
+            }
+          }
+        }
+        if (!cg.isUidInitialized()) {
+          struct can_frame tx
+          {
+          };
+          cgs[i].buildGetDeviceId(tx);
+          rt.post(yy_socket_can::TxRequest{ifname, tx});
+          if (verbose) {
+            const uint32_t id = tx.can_id & CAN_EFF_MASK;
+            std::cout << "RETRY TX 0x" << std::hex << std::uppercase << id << std::dec
+                      << " (GetDeviceId)\n";
+          }
+        }
+      }
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+}
+
+// Wait until user presses Enter (or SIGINT occurs). Returns true if Enter was pressed.
+inline bool wait_for_enter_or_sigint()
+{
+  while (g_running) {
+    struct pollfd pfd;
+    pfd.fd = 0;  // stdin
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+    const int pret = ::poll(&pfd, 1, 200);  // 200 ms timeout
+    if (pret > 0 && (pfd.revents & POLLIN)) {
+      char ch = 0;
+      const ssize_t n = ::read(0, &ch, 1);
+      if (n > 0 && (ch == '\n' || ch == '\r')) return true;  // start on Enter
+      // If other characters were typed, keep polling until newline arrives
+    }
+  }
+  return false;
+}
+
+// Main monitoring loop: print status lines and periodically ClearFaults
+inline void monitoring_loop(
+  yy_socket_can::CanRuntime & rt, const std::string & ifname,
+  std::vector<yy_cybergear::CyberGear> & cgs, int rate_hz, double duration,
+  const Clock::time_point & t0, bool verbose)
+{
+  const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
+  while (g_running) {
+    const auto start = Clock::now();
+    const auto deadline = start + dt_ns;
+    const double t_now = std::chrono::duration<double>(start - t0).count();
+
+    for (const auto & cg : cgs) {
+      print_status(cg, t_now);
+    }
+
+    for (auto & cg : cgs) {
+      struct can_frame tx
+      {
+      };
+      cg.buildClearFaults(tx);
+      rt.post(yy_socket_can::TxRequest{ifname, tx});
+      if (verbose) {
+        const uint32_t id = tx.can_id & CAN_EFF_MASK;
+        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (ClearFaults)"
+                  << std::endl;
+      }
+    }
+
+    if (duration > 0.0 && t_now >= duration) break;
+
+    std::this_thread::sleep_until(deadline);
+  }
 }
 }  // namespace
 
@@ -128,16 +284,11 @@ int main(int argc, char ** argv)
   rt.setWarningLogger([](const std::string & m) { std::cerr << m << std::endl; });
   rt.addChannel(ifname);
 
-  // Register a handler for all extended CAN IDs and filter in user-space via dispatchAndUpdate.
-  const uint32_t min_id = 0u;
-  const uint32_t max_id = CAN_EFF_MASK;
-
   // Create a CyberGear instance per motor
   std::vector<yy_cybergear::CyberGear> cgs;
   cgs.reserve(motors.size());
   for (auto m : motors) cgs.emplace_back(host, m);
-  using clock = std::chrono::steady_clock;
-  const auto t0 = clock::now();
+  const auto t0 = Clock::now();
 
   // Track preflight indices (only for issuing requests; readiness is tracked inside CyberGear)
   const std::vector<uint16_t> preflight_params = {
@@ -153,15 +304,8 @@ int main(int argc, char ** argv)
     yy_cybergear::SPEED_KI,
   };
 
-  rt.registerHandler(min_id, max_id, [verbose, &cgs](const struct can_frame & f) {
-    // Dispatch updates into CG mirrors (will set initialized flags internally)
-    for (auto & cg : cgs) (void)cg.dispatchAndUpdate(f);
-    if (verbose) {
-      const uint32_t id = f.can_id & CAN_EFF_MASK;
-      std::cout << "RX 0x" << std::hex << std::uppercase << id << std::dec
-                << " dlc=" << int(f.can_dlc) << "\n";
-    }
-  });
+  // Register a handler for all extended CAN IDs and filter in user-space via dispatchAndUpdate.
+  register_can_handler(rt, cgs, verbose);
 
   // Start runtime and wait
   rt.start();
@@ -176,84 +320,7 @@ int main(int argc, char ** argv)
             << " Hz. Press Ctrl+C to stop..." << '\n';
 
   // Preflight: request parameters and UID, then wait (without starting the main loop)
-  for (std::size_t i = 0; i < cgs.size(); ++i) {
-    for (uint16_t idx : preflight_params) {
-      struct can_frame tx
-      {
-      };
-      cgs[i].buildReadParam(idx, tx);
-      rt.post(yy_socket_can::TxRequest{ifname, tx});
-      if (verbose) {
-        const uint32_t id = tx.can_id & CAN_EFF_MASK;
-        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (ReadParam 0x"
-                  << std::hex << std::uppercase << idx << std::dec << ")\n";
-      }
-    }
-    // Request MCU UID (device ID)
-    {
-      struct can_frame tx
-      {
-      };
-      cgs[i].buildGetDeviceId(tx);
-      rt.post(yy_socket_can::TxRequest{ifname, tx});
-      if (verbose) {
-        const uint32_t id = tx.can_id & CAN_EFF_MASK;
-        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (GetDeviceId)\n";
-      }
-    }
-  }
-
-  bool all_ready = false;
-  auto last_retry = clock::now();
-  while (g_running && !all_ready) {
-    // Check completion using CyberGear's initialized flags
-    all_ready = true;
-    for (const auto & cg : cgs) {
-      if (!cg.isInitializedFor(preflight_params, /*require_uid=*/true)) {
-        all_ready = false;
-        break;
-      }
-    }
-    if (all_ready) break;
-    // Periodically resend outstanding ReadParam/DeviceId requests until all are received
-    const auto now = clock::now();
-    if (now - last_retry >= std::chrono::milliseconds(200)) {
-      last_retry = now;
-      for (std::size_t i = 0; i < cgs.size(); ++i) {
-        const auto & cg = cgs[i];
-        // Re-issue any missing ReadParam indices
-        for (uint16_t idx : preflight_params) {
-          if (!cg.isParamInitialized(idx)) {
-            struct can_frame tx
-            {
-            };
-            cgs[i].buildReadParam(idx, tx);
-            rt.post(yy_socket_can::TxRequest{ifname, tx});
-            if (verbose) {
-              const uint32_t id = tx.can_id & CAN_EFF_MASK;
-              std::cout << "RETRY TX 0x" << std::hex << std::uppercase << id << std::dec
-                        << " (ReadParam 0x" << std::hex << std::uppercase << idx << std::dec
-                        << ")\n";
-            }
-          }
-        }
-        // Re-issue DeviceId if UID not yet received
-        if (!cg.isUidInitialized()) {
-          struct can_frame tx
-          {
-          };
-          cgs[i].buildGetDeviceId(tx);
-          rt.post(yy_socket_can::TxRequest{ifname, tx});
-          if (verbose) {
-            const uint32_t id = tx.can_id & CAN_EFF_MASK;
-            std::cout << "RETRY TX 0x" << std::hex << std::uppercase << id << std::dec
-                      << " (GetDeviceId)\n";
-          }
-        }
-      }
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  }
+  preflight_sync(rt, ifname, cgs, preflight_params, verbose);
 
   // Print collected parameters per motor
   std::cout << "\nCollected parameters (including UID, excluding Status):\n";
@@ -261,54 +328,13 @@ int main(int argc, char ** argv)
     print_params(cg);
   }
   std::cout << "\nPress Enter to start monitoring (Ctrl+C to exit) ..." << std::endl;
-  while (g_running) {
-    struct pollfd pfd;
-    pfd.fd = 0;  // stdin
-    pfd.events = POLLIN;
-    pfd.revents = 0;
-    const int pret = ::poll(&pfd, 1, 200);  // 200 ms timeout
-    if (pret > 0 && (pfd.revents & POLLIN)) {
-      char ch = 0;
-      const ssize_t n = ::read(0, &ch, 1);
-      if (n > 0 && (ch == '\n' || ch == '\r')) break;  // start on Enter
-      // If other characters were typed, keep polling until newline arrives
-    }
-  }
-  if (!g_running) {
+  if (!wait_for_enter_or_sigint()) {
     rt.stop();
     return EXIT_SUCCESS;
   }
 
   // Periodically post ClearFaults requests similar to exmp_02
-  const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
-  while (g_running) {
-    const auto start = clock::now();
-    const auto deadline = start + dt_ns;
-    const double t_now = std::chrono::duration<double>(start - t0).count();
-
-    // Poll and print status snapshots for all motors (main thread only)
-    for (const auto & cg : cgs) {
-      print_status(cg, t_now);
-    }
-
-    for (auto & cg : cgs) {
-      struct can_frame tx
-      {
-      };
-      cg.buildClearFaults(tx);
-      rt.post(yy_socket_can::TxRequest{ifname, tx});
-      if (verbose) {
-        const uint32_t id = tx.can_id & CAN_EFF_MASK;
-        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (ClearFaults)"
-                  << std::endl;
-      }
-    }
-
-    // Stop on duration
-    if (duration > 0.0 && t_now >= duration) break;
-
-    std::this_thread::sleep_until(deadline);
-  }
+  monitoring_loop(rt, ifname, cgs, rate_hz, duration, t0, verbose);
 
   rt.stop();
   return EXIT_SUCCESS;
