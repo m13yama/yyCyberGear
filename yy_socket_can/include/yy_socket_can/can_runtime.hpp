@@ -48,7 +48,7 @@ public:
 
   // Minimal interval between consecutive TX frames (microseconds).
   // Change this to tune pacing; used by tx_worker.
-  static constexpr int kTxInterFrameDelayUs = 200;
+  static constexpr int kTxInterFrameDelayUs = 1000;
 
   explicit CanRuntime(bool enable_can_fd = false);
   ~CanRuntime();
