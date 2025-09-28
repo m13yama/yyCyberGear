@@ -197,30 +197,6 @@ void buildWriteParamReq(
   std::copy_n(data.data(), 4, &out.data[4]);
 }
 
-bool parseDeviceIdResp(
-  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
-  std::array<uint8_t, kUidLen> & out_uid)
-{
-  // Require Extended Frame Format
-  if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
-  const uint32_t eid = in.can_id & CAN_EFF_MASK;
-  // Check frame type
-  const auto t = getFrameType(in);
-  if (t != DataFrameType::Type0_DeviceId) return false;
-  // Verify host and motor IDs from EFF-ID
-  const uint8_t hid = static_cast<uint8_t>((eid >> 16) & 0xFFu);
-  if (hid != expect_host_id) return false;
-  const uint8_t mid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
-  if (mid != expect_motor_id) return false;
-  // Response spec: low 8 bits should be 0xFE
-  if ((eid & 0xFFu) != 0xFEu) return false;
-  // UID length must match
-  if (in.can_dlc != kUidLen) return false;
-  // Copy UID bytes
-  std::copy_n(&in.data[0], kUidLen, out_uid.begin());
-  return true;
-}
-
 DataFrameType getFrameType(const struct can_frame & in) noexcept
 {
   // Only extended frames carry typed EIDs
@@ -257,15 +233,54 @@ DataFrameType getFrameType(const struct can_frame & in) noexcept
   return DataFrameType::Unknown;
 }
 
-bool parseFaultWarningResp(
-  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, FaultWarning & out)
+bool parseDeviceIdResp(
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
+  std::array<uint8_t, kUidLen> & out_uid, bool type_check)
 {
-  // Check Extended Frame Format (EFF)
-  if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
+  if (type_check) {
+    // Check Extended Frame Format (EFF)
+    if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
 
-  // Check frame type
-  const auto t = getFrameType(in);
-  if (t != DataFrameType::Type21_FaultWarning) return false;
+    // Check frame type
+    const auto t = getFrameType(in);
+    if (t != DataFrameType::Type0_DeviceId) return false;
+  }
+
+  // Extract extended ID
+  const uint32_t eid = in.can_id & CAN_EFF_MASK;
+
+  // Check host id
+  const uint8_t hid = static_cast<uint8_t>((eid >> 16) & 0xFFu);
+  if (hid != expect_host_id) return false;
+
+  // Check motor id
+  const uint8_t mid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
+  if (mid != expect_motor_id) return false;
+
+  // Response spec: low 8 bits should be 0xFE
+  if ((eid & 0xFFu) != 0xFEu) return false;
+
+  // UID length must match
+  if (in.can_dlc != kUidLen) return false;
+
+  // Copy UID bytes
+  std::copy_n(&in.data[0], kUidLen, out_uid.begin());
+
+  return true;
+}
+
+bool parseFaultWarningResp(
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, FaultWarning & out,
+  bool type_check)
+{
+  if (type_check) {
+    // Check Extended Frame Format (EFF)
+    if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
+
+    // Check frame type
+    const auto t = getFrameType(in);
+    if (t != DataFrameType::Type21_FaultWarning) return false;
+  }
 
   // Extract extended ID
   const uint32_t eid = in.can_id & CAN_EFF_MASK;
@@ -290,14 +305,16 @@ bool parseFaultWarningResp(
 
 bool parseReadParamResp(
   const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
-  uint16_t & out_index, std::array<uint8_t, 4> & out_data)
+  uint16_t & out_index, std::array<uint8_t, 4> & out_data, bool type_check)
 {
-  // Check Extended Frame Format (EFF)
-  if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
+  if (type_check) {
+    // Check Extended Frame Format (EFF)
+    if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
 
-  // Check frame type
-  const auto t = getFrameType(in);
-  if (t != DataFrameType::Type17_ReadParam) return false;
+    // Check frame type
+    const auto t = getFrameType(in);
+    if (t != DataFrameType::Type17_ReadParam) return false;
+  }
 
   // Extract extended ID
   const uint32_t eid = in.can_id & CAN_EFF_MASK;
@@ -322,14 +339,17 @@ bool parseReadParamResp(
 }
 
 bool parseStatus(
-  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, Status & out)
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, Status & out,
+  bool type_check)
 {
-  // Check Extended Frame Format (EFF)
-  if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
+  if (type_check) {
+    // Check Extended Frame Format (EFF)
+    if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
 
-  // Check frame type
-  const auto t = getFrameType(in);
-  if (t != DataFrameType::Type2_Status) return false;
+    // Check frame type
+    const auto t = getFrameType(in);
+    if (t != DataFrameType::Type2_Status) return false;
+  }
 
   // Extract extended ID
   const uint32_t eid = in.can_id & CAN_EFF_MASK;

@@ -192,106 +192,41 @@ std::array<uint8_t, 4> CyberGearV2::packLE16s(int16_t v)
   return {static_cast<uint8_t>(u & 0xFFu), static_cast<uint8_t>((u >> 8) & 0xFFu), 0x00, 0x00};
 }
 
-bool CyberGearV2::updateFromDeviceIdResp(const struct can_frame & in, bool validate)
+bool CyberGearV2::updateFromDeviceIdResp(const struct can_frame & in, bool type_check)
 {
-  // Check frame type
-  if (validate) {
-    if (!data_frame_handler::isExtended(in.can_id)) return false;
-    const auto t = data_frame_handler::getFrameType(in);
-    if (t != data_frame_handler::DataFrameType::Type0_DeviceId) return false;
+  std::array<uint8_t, kUidLen> uid{};
+  if (!data_frame_handler::parseDeviceIdResp(in, host_id_, motor_id_, uid, type_check)) {
+    return false;
   }
-
-  // Extract extended ID
-  const uint32_t eid = in.can_id & CAN_EFF_MASK;
-
-  // Check host id
-  const uint8_t hid = static_cast<uint8_t>((eid >> 16) & 0xFFu);
-  if (hid != host_id_) return false;
-
-  // Check motor id
-  const uint8_t mid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
-  if (mid != motor_id_) return false;
-
-  // Check low byte == 0xFE
-  if ((eid & 0xFFu) != 0xFEu) return false;
-
-  // Check data length
-  if (in.can_dlc != 8) return false;
-
-  // Parse UID from data bytes
-  for (int i = 0; i < 8; ++i) uid_[i] = in.data[i];
-
+  uid_ = uid;
   return true;
 }
 
-bool CyberGearV2::updateFromStatusFrame(const struct can_frame & in, bool validate)
+bool CyberGearV2::updateFromStatusFrame(const struct can_frame & in, bool type_check)
 {
-  // Check frame type
-  if (validate) {
-    if (!data_frame_handler::isExtended(in.can_id)) return false;
-    const auto t = data_frame_handler::getFrameType(in);
-    if (t != data_frame_handler::DataFrameType::Type2_Status) return false;
+  data_frame_handler::Status s{};
+  if (!data_frame_handler::parseStatus(in, host_id_, motor_id_, s, type_check)) {
+    return false;
   }
-
-  // Extract extended ID
-  const uint32_t eid = in.can_id & CAN_EFF_MASK;
-
-  // Check host id
-  const uint8_t hid = static_cast<uint8_t>(eid & 0xFFu);
-  if (hid != host_id_) return false;
-
-  // Check motor id
-  const uint8_t mid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
-  if (mid != motor_id_) return false;
-
-  // Check data length
-  if (in.can_dlc != 8) return false;
-
-  // Parse motor status contained in CAN ID bits
-  motor_can_id_ = mid;
-  fault_bits_ = static_cast<uint8_t>((eid >> 16) & 0x3Fu);
-  mode_ = static_cast<uint8_t>((eid >> 22) & 0x03u);
-  raw_eff_id_ = eid;
-
-  // Parse motor status contained in data bytes
-  const uint16_t u_pos = readBE16(&in.data[0]);
-  const uint16_t u_vel = readBE16(&in.data[2]);
-  const uint16_t u_tor = readBE16(&in.data[4]);
-  const uint16_t u_tmp = readBE16(&in.data[6]);
-  angle_rad_ = u16toF(u_pos, -4.0f * kPi_, 4.0f * kPi_);
-  vel_rad_s_ = u16toF(u_vel, -30.0f, 30.0f);
-  torque_Nm_ = u16toF(u_tor, -12.0f, 12.0f);
-  temperature_c_ = static_cast<float>(u_tmp) / 10.0f;
-
+  angle_rad_ = s.angle_rad;
+  vel_rad_s_ = s.vel_rad_s;
+  torque_Nm_ = s.torque_Nm;
+  temperature_c_ = s.temperature_c;
+  motor_can_id_ = s.motor_can_id;
+  mode_ = s.mode;
+  fault_bits_ = s.fault_bits;
+  raw_eff_id_ = s.raw_eff_id;
   return true;
 }
 
-bool CyberGearV2::updateFromReadParamResp(const struct can_frame & in, bool validate)
+bool CyberGearV2::updateFromReadParamResp(const struct can_frame & in, bool type_check)
 {
-  // Check frame type
-  if (validate) {
-    if (!data_frame_handler::isExtended(in.can_id)) return false;
-    const auto t = data_frame_handler::getFrameType(in);
-    if (t != data_frame_handler::DataFrameType::Type17_ReadParam) return false;
+  uint16_t index = 0;
+  std::array<uint8_t, 4> data{};
+  if (!data_frame_handler::parseReadParamResp(in, host_id_, motor_id_, index, data, type_check)) {
+    return false;
   }
-
-  // Extract extended ID
-  const uint32_t eid = in.can_id & CAN_EFF_MASK;
-
-  // Check host id
-  const uint8_t hid = static_cast<uint8_t>(eid & 0xFFu);
-  if (hid != host_id_) return false;
-
-  // Check motor id
-  const uint8_t mid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
-  if (mid != motor_id_) return false;
-
-  // Check data length
-  if (in.can_dlc != 8) return false;
-
-  // Parse index and data
-  const uint16_t index = readLE16(&in.data[0]);
-  const uint32_t u32 = readLE32(&in.data[4]);
+  const uint32_t u32 = readLE32(data.data());
 
   // Interpret based on known parameter index
   switch (index) {
@@ -355,33 +290,14 @@ bool CyberGearV2::updateFromReadParamResp(const struct can_frame & in, bool vali
   return false;
 }
 
-bool CyberGearV2::updateFromFaultWarningResp(const struct can_frame & in, bool validate)
+bool CyberGearV2::updateFromFaultWarningResp(const struct can_frame & in, bool type_check)
 {
-  // Check frame type
-  if (validate) {
-    if (!data_frame_handler::isExtended(in.can_id)) return false;
-    const auto t = data_frame_handler::getFrameType(in);
-    if (t != data_frame_handler::DataFrameType::Type21_FaultWarning) return false;
+  data_frame_handler::FaultWarning fw{};
+  if (!data_frame_handler::parseFaultWarningResp(in, host_id_, motor_id_, fw, type_check)) {
+    return false;
   }
-
-  // Extract extended ID
-  const uint32_t eid = in.can_id & CAN_EFF_MASK;
-
-  // Check host id
-  const uint8_t hid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
-  if (hid != host_id_) return false;
-
-  // Check motor id
-  const uint8_t mid = static_cast<uint8_t>(eid & 0xFFu);
-  if (mid != motor_id_) return false;
-
-  // Check data length
-  if (in.can_dlc != 8) return false;
-
-  // Parse fault/warning snapshot from data bytes
-  faults_bits_ = readLE32(&in.data[0]);
-  warnings_bits_ = readLE32(&in.data[4]);
-
+  faults_bits_ = fw.faults;
+  warnings_bits_ = fw.warnings;
   return true;
 }
 

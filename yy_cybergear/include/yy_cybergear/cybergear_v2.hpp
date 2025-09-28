@@ -133,13 +133,13 @@ public:
 
   // ===== Frame-driven updaters (no existing structs used) =====
   // Parse and update internal status fields from a status frame (type==2)
-  bool updateFromStatusFrame(const struct can_frame & in, bool validate = true);
+  bool updateFromStatusFrame(const struct can_frame & in, bool type_check = true);
   // Parse and update UID from device-id response (type==0, low8==0xFE); uses motor_id_
-  bool updateFromDeviceIdResp(const struct can_frame & in, bool validate = true);
+  bool updateFromDeviceIdResp(const struct can_frame & in, bool type_check = true);
   // Parse and update fault/warning snapshot from type==21 response (uses host_id_)
-  bool updateFromFaultWarningResp(const struct can_frame & in, bool validate = true);
+  bool updateFromFaultWarningResp(const struct can_frame & in, bool type_check = true);
   // Parse and update any known parameter value from type==17 read-param response (uses host_id_)
-  bool updateFromReadParamResp(const struct can_frame & in, bool validate = true);
+  bool updateFromReadParamResp(const struct can_frame & in, bool type_check = true);
 
   // Dispatch a received frame by its type and update internal state accordingly.
   // Returns which kind of update was applied (or None if not applicable).
