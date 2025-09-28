@@ -16,6 +16,7 @@
 
 #include <cstring>
 
+#include "yy_cybergear/byte_utils.hpp"
 #include "yy_cybergear/data_frame_handler.hpp"
 
 namespace yy_cybergear
@@ -77,119 +78,92 @@ void CyberGearV2::buildWriteParam(
 // ===== Per-parameter helpers =====
 void CyberGearV2::buildSetRunMode(uint32_t mode, struct can_frame & out) const
 {
-  buildWriteParam(RUN_MODE, packLE32(mode), out);
+  buildWriteParam(RUN_MODE, byte_util::packLE32(mode), out);
 }
 
 void CyberGearV2::buildSetIqReference(float ampere, struct can_frame & out) const
 {
-  buildWriteParam(IQ_REFERENCE, packLEf(ampere), out);
+  buildWriteParam(IQ_REFERENCE, byte_util::packLEf(ampere), out);
 }
 
 void CyberGearV2::buildSetSpeedReference(float rad_s, struct can_frame & out) const
 {
-  buildWriteParam(SPEED_REFERENCE, packLEf(rad_s), out);
+  buildWriteParam(SPEED_REFERENCE, byte_util::packLEf(rad_s), out);
 }
 
 void CyberGearV2::buildSetTorqueLimit(float nm, struct can_frame & out) const
 {
-  buildWriteParam(TORQUE_LIMIT, packLEf(nm), out);
+  buildWriteParam(TORQUE_LIMIT, byte_util::packLEf(nm), out);
 }
 
 void CyberGearV2::buildSetCurrentKp(float v, struct can_frame & out) const
 {
-  buildWriteParam(CURRENT_KP, packLEf(v), out);
+  buildWriteParam(CURRENT_KP, byte_util::packLEf(v), out);
 }
 
 void CyberGearV2::buildSetCurrentKi(float v, struct can_frame & out) const
 {
-  buildWriteParam(CURRENT_KI, packLEf(v), out);
+  buildWriteParam(CURRENT_KI, byte_util::packLEf(v), out);
 }
 
 void CyberGearV2::buildSetCurrentFilterGain(float v, struct can_frame & out) const
 {
-  buildWriteParam(CURRENT_FILTER_GAIN, packLEf(v), out);
+  buildWriteParam(CURRENT_FILTER_GAIN, byte_util::packLEf(v), out);
 }
 
 void CyberGearV2::buildSetPositionReference(float rad, struct can_frame & out) const
 {
-  buildWriteParam(POSITION_REFERENCE, packLEf(rad), out);
+  buildWriteParam(POSITION_REFERENCE, byte_util::packLEf(rad), out);
 }
 
 void CyberGearV2::buildSetSpeedLimit(float rad_s, struct can_frame & out) const
 {
-  buildWriteParam(SPEED_LIMIT, packLEf(rad_s), out);
+  buildWriteParam(SPEED_LIMIT, byte_util::packLEf(rad_s), out);
 }
 
 void CyberGearV2::buildSetCurrentLimit(float ampere, struct can_frame & out) const
 {
-  buildWriteParam(CURRENT_LIMIT, packLEf(ampere), out);
+  buildWriteParam(CURRENT_LIMIT, byte_util::packLEf(ampere), out);
 }
 
 void CyberGearV2::buildSetMechanicalPosition(float rad, struct can_frame & out) const
 {
-  buildWriteParam(MECHANICAL_POSITION, packLEf(rad), out);
+  buildWriteParam(MECHANICAL_POSITION, byte_util::packLEf(rad), out);
 }
 
 void CyberGearV2::buildSetIqFilter(float ampere, struct can_frame & out) const
 {
-  buildWriteParam(IQ_FILTER, packLEf(ampere), out);
+  buildWriteParam(IQ_FILTER, byte_util::packLEf(ampere), out);
 }
 
 void CyberGearV2::buildSetMechanicalVelocity(float rad_s, struct can_frame & out) const
 {
-  buildWriteParam(MECHANICAL_VELOCITY, packLEf(rad_s), out);
+  buildWriteParam(MECHANICAL_VELOCITY, byte_util::packLEf(rad_s), out);
 }
 
 void CyberGearV2::buildSetBusVoltage(float volt, struct can_frame & out) const
 {
-  buildWriteParam(BUS_VOLTAGE, packLEf(volt), out);
+  buildWriteParam(BUS_VOLTAGE, byte_util::packLEf(volt), out);
 }
 
 void CyberGearV2::buildSetRotationTurns(int16_t turns, struct can_frame & out) const
 {
-  buildWriteParam(ROTATION_TURNS, packLE16s(turns), out);
+  buildWriteParam(ROTATION_TURNS, byte_util::packLE16s(turns), out);
 }
 
 void CyberGearV2::buildSetPositionKp(float v, struct can_frame & out) const
 {
-  buildWriteParam(POSITION_KP, packLEf(v), out);
+  buildWriteParam(POSITION_KP, byte_util::packLEf(v), out);
 }
 
 void CyberGearV2::buildSetSpeedKp(float v, struct can_frame & out) const
 {
-  buildWriteParam(SPEED_KP, packLEf(v), out);
+  buildWriteParam(SPEED_KP, byte_util::packLEf(v), out);
 }
 
 void CyberGearV2::buildSetSpeedKi(float v, struct can_frame & out) const
 {
-  buildWriteParam(SPEED_KI, packLEf(v), out);
-}
-
-// ===== pack helpers =====
-std::array<uint8_t, 4> CyberGearV2::packLE32(uint32_t v)
-{
-  return {
-    static_cast<uint8_t>(v & 0xFFu), static_cast<uint8_t>((v >> 8) & 0xFFu),
-    static_cast<uint8_t>((v >> 16) & 0xFFu), static_cast<uint8_t>((v >> 24) & 0xFFu)};
-}
-
-std::array<uint8_t, 4> CyberGearV2::packLEf(float v)
-{
-  static_assert(sizeof(float) == 4, "float must be 32-bit IEEE754");
-  uint32_t u = 0;
-  std::memcpy(&u, &v, 4);
-  return packLE32(u);
-}
-
-std::array<uint8_t, 4> CyberGearV2::packLE16u(uint16_t v)
-{
-  return {static_cast<uint8_t>(v & 0xFFu), static_cast<uint8_t>((v >> 8) & 0xFFu), 0x00, 0x00};
-}
-
-std::array<uint8_t, 4> CyberGearV2::packLE16s(int16_t v)
-{
-  const uint16_t u = static_cast<uint16_t>(v);
-  return {static_cast<uint8_t>(u & 0xFFu), static_cast<uint8_t>((u >> 8) & 0xFFu), 0x00, 0x00};
+  buildWriteParam(SPEED_KI, byte_util::packLEf(v), out);
 }
 
 bool CyberGearV2::updateFromDeviceIdResp(const struct can_frame & in, bool type_check)
@@ -226,7 +200,7 @@ bool CyberGearV2::updateFromReadParamResp(const struct can_frame & in, bool type
   if (!data_frame_handler::parseReadParamResp(in, host_id_, motor_id_, index, data, type_check)) {
     return false;
   }
-  const uint32_t u32 = readLE32(data.data());
+  const uint32_t u32 = byte_util::readLE32(data.data());
 
   // Interpret based on known parameter index
   switch (index) {

@@ -125,12 +125,6 @@ public:
   void buildGetSpeedKi(struct can_frame & out) const { buildReadParam(SPEED_KI, out); }
   void buildSetSpeedKi(float v, struct can_frame & out) const;
 
-  // Static helpers to pack numbers into little-endian 4-byte payloads
-  static std::array<uint8_t, 4> packLE32(uint32_t v);
-  static std::array<uint8_t, 4> packLEf(float v);
-  static std::array<uint8_t, 4> packLE16u(uint16_t v);
-  static std::array<uint8_t, 4> packLE16s(int16_t v);
-
   // ===== Frame-driven updaters (no existing structs used) =====
   // Parse and update internal status fields from a status frame (type==2)
   bool updateFromStatusFrame(const struct can_frame & in, bool type_check = true);
@@ -227,25 +221,6 @@ private:
 
   // Local helpers
   static constexpr float kPi_ = 3.14159265358979323846f;
-  static uint16_t readBE16(const uint8_t * p)
-  {
-    return static_cast<uint16_t>((static_cast<uint16_t>(p[0]) << 8) | static_cast<uint16_t>(p[1]));
-  }
-  static uint16_t readLE16(const uint8_t * p)
-  {
-    return static_cast<uint16_t>(
-      (static_cast<uint16_t>(p[0]) << 0) | (static_cast<uint16_t>(p[1]) << 8));
-  }
-  static uint32_t readLE32(const uint8_t * p)
-  {
-    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
-           (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
-  }
-  static float u16toF(uint16_t u, float xmin, float xmax)
-  {
-    const float n = static_cast<float>(u) / 65535.0f;
-    return xmin + n * (xmax - xmin);
-  }
 };
 
 }  // namespace yy_cybergear
