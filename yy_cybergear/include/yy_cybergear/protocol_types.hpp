@@ -26,7 +26,8 @@ namespace yy_cybergear
 constexpr int kUidLen = 8;
 
 // Parameter index constants used in read/write parameter requests.
-constexpr uint16_t RUN_MODE = 0x7005;      // Run mode (0: reset, 1: cali, 2: run)
+constexpr uint16_t RUN_MODE =
+  0x7005;  // Control RunMode param (0: OperationCtrl, 1: Position, 2: Speed, 3: Current)
 constexpr uint16_t IQ_REFERENCE = 0x7006;  // Iq reference [A]
 
 constexpr uint16_t SPEED_REFERENCE = 0x700A;  // Speed reference [rad/s]
@@ -68,7 +69,10 @@ struct Status
   float torque_Nm{0.0f};
   float temperature_c{0.0f};
   uint8_t motor_can_id{0};
-  uint8_t mode{0};         // 0: reset, 1: cali, 2: run
+  // Status mode from EFF-ID bits (not the same as control RunMode parameter)
+  // 0: Reset, 1: Calibration, 2: Run
+  enum class StatusMode : uint8_t { Reset = 0, Calibration = 1, Run = 2 };
+  StatusMode status_mode{StatusMode::Reset};
   uint8_t fault_bits{0};   // lower 6 bits map to 21..16 per manual
   uint32_t raw_eff_id{0};  // 29-bit EFF identifier (no flags)
 };
@@ -80,20 +84,29 @@ struct FaultWarning
   uint32_t warnings{0};
 };
 
-// Human-readable helpers for decoding status fields
-inline std::string mode_to_string(uint8_t mode)
+// Control RunMode for buildSetRunMode()
+enum class RunMode : uint32_t { OperationControl = 0, Position = 1, Speed = 2, Current = 3 };
+
+// Human-readable helpers for decoding status fields (status_mode)
+inline std::string status_mode_to_string(Status::StatusMode status_mode)
 {
-  switch (mode & 0x03u) {
-    case 0:
+  switch (status_mode) {
+    case Status::StatusMode::Reset:
       return "Reset";
-    case 1:
+    case Status::StatusMode::Calibration:
       return "Calibration";
-    case 2:
+    case Status::StatusMode::Run:
       return "Run";
     default:
       break;
   }
-  return std::string("Unknown(") + std::to_string(static_cast<unsigned>(mode)) + ")";
+  return std::string("Unknown(") + std::to_string(static_cast<unsigned>(status_mode)) + ")";
+}
+
+// Convenience overload for legacy uint8_t callers
+inline std::string status_mode_to_string(uint8_t status_mode)
+{
+  return status_mode_to_string(static_cast<Status::StatusMode>(status_mode & 0x03u));
 }
 
 // Fault bits (from EFF ID bits 21..16) mapped onto Status::fault_bits lower 6 bits

@@ -34,6 +34,8 @@ namespace yy_cybergear
 class CyberGear
 {
 public:
+  // Backward-compatible alias
+  using RunMode = yy_cybergear::RunMode;
   explicit CyberGear(uint8_t host_id, uint8_t motor_id) noexcept
   : host_id_(host_id), motor_id_(motor_id)
   {
@@ -56,7 +58,7 @@ public:
     torque_Nm_ = other.torque_Nm_;
     temperature_c_ = other.temperature_c_;
     motor_can_id_ = other.motor_can_id_;
-    mode_ = other.mode_;
+    status_mode_ = other.status_mode_;
     status_fault_bits_ = other.status_fault_bits_;
     raw_eff_id_ = other.raw_eff_id_;
 
@@ -97,7 +99,7 @@ public:
       torque_Nm_ = other.torque_Nm_;
       temperature_c_ = other.temperature_c_;
       motor_can_id_ = other.motor_can_id_;
-      mode_ = other.mode_;
+      status_mode_ = other.status_mode_;
       status_fault_bits_ = other.status_fault_bits_;
       raw_eff_id_ = other.raw_eff_id_;
 
@@ -150,9 +152,9 @@ public:
     uint16_t index, const std::array<uint8_t, 4> & data, struct can_frame & out) const noexcept;
 
   // ===== Per-parameter helpers =====
-  // RUN_MODE (0x7005): 0 reset, 1 cali, 2 run
+  // RUN_MODE (0x7005): Control mode enum (0 OperationControl, 1 Position, 2 Speed, 3 Current)
   void buildGetRunMode(struct can_frame & out) const noexcept { buildReadParam(RUN_MODE, out); }
-  void buildSetRunMode(uint32_t mode, struct can_frame & out) const noexcept;
+  void buildSetRunMode(RunMode mode, struct can_frame & out) const noexcept;
 
   // IQ_REFERENCE (A)
   void buildGetIqReference(struct can_frame & out) const noexcept
@@ -268,8 +270,8 @@ public:
   [[nodiscard]] Status getStatus() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return Status{angle_rad_,    vel_rad_s_, torque_Nm_,         temperature_c_,
-                  motor_can_id_, mode_,      status_fault_bits_, raw_eff_id_};
+    return Status{angle_rad_,    vel_rad_s_,   torque_Nm_,         temperature_c_,
+                  motor_can_id_, status_mode_, status_fault_bits_, raw_eff_id_};
   }
 
   // Backward-compatible per-field getters (thread-safe)
@@ -298,10 +300,10 @@ public:
     std::lock_guard<std::mutex> lk(mu_);
     return motor_can_id_;
   }
-  uint8_t mode() const noexcept
+  Status::StatusMode status_mode() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return mode_;
+    return status_mode_;
   }
   uint8_t fault_bits() const noexcept
   {
@@ -343,7 +345,7 @@ public:
   }
 
   // ===== Parameter getters (mirror) =====
-  uint32_t run_mode() const noexcept
+  RunMode run_mode() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return run_mode_;
@@ -473,7 +475,7 @@ private:
   float torque_Nm_{0.0f};
   float temperature_c_{0.0f};
   uint8_t motor_can_id_{0};
-  uint8_t mode_{0};
+  Status::StatusMode status_mode_{Status::StatusMode::Reset};
   uint8_t status_fault_bits_{0};
   uint32_t raw_eff_id_{0};
 
@@ -486,7 +488,7 @@ private:
   bool uid_initialized_{false};
 
   // Parameter mirrors
-  uint32_t run_mode_{0};
+  RunMode run_mode_{RunMode::OperationControl};
   float iq_reference_{0.0f};
   float speed_reference_{0.0f};
   float torque_limit_{0.0f};

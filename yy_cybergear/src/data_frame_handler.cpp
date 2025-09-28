@@ -324,7 +324,7 @@ bool parseStatus(
   // Parse motor status encoded in EFF-ID bits
   out.motor_can_id = mid;
   out.fault_bits = static_cast<uint8_t>((eid >> 16) & 0x3Fu);
-  out.mode = static_cast<uint8_t>((eid >> 22) & 0x03u);
+  out.status_mode = static_cast<Status::StatusMode>(static_cast<uint8_t>((eid >> 22) & 0x03u));
   out.raw_eff_id = eid;
 
   // Parse motor status payload (big-endian u16 fields)

@@ -329,17 +329,17 @@ int main(int argc, char ** argv)
     return EXIT_SUCCESS;
   }
 
-  // Set RunMode=2 (run) and Enable motors
+  // Set RunMode=OperationControl and Enable motors
   for (auto & cg : cgs) {
     struct can_frame tx
     {
     };
-    cg.buildSetRunMode(2u, tx);
+    cg.buildSetRunMode(yy_cybergear::RunMode::OperationControl, tx);
     rt.post(yy_socket_can::TxRequest{ifname, tx});
     if (verbose) {
       const uint32_t id = tx.can_id & CAN_EFF_MASK;
       std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
-                << " (Write RUN_MODE=2)\n";
+                << " (Write RUN_MODE=OperationControl)\n";
     }
   }
   for (auto & cg : cgs) {

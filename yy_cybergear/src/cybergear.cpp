@@ -76,9 +76,10 @@ void CyberGear::buildWriteParam(
 }
 
 // ===== Per-parameter helpers =====
-void CyberGear::buildSetRunMode(uint32_t mode, struct can_frame & out) const noexcept
+void CyberGear::buildSetRunMode(RunMode mode, struct can_frame & out) const noexcept
 {
-  buildWriteParam(RUN_MODE, byte_util::packLE32(mode), out);
+  const auto v = static_cast<uint32_t>(mode);
+  buildWriteParam(RUN_MODE, byte_util::packLE32(v), out);
 }
 
 void CyberGear::buildSetIqReference(float ampere, struct can_frame & out) const noexcept
@@ -193,7 +194,7 @@ bool CyberGear::updateFromStatusFrame(const struct can_frame & in, bool type_che
     torque_Nm_ = s.torque_Nm;
     temperature_c_ = s.temperature_c;
     motor_can_id_ = s.motor_can_id;
-    mode_ = s.mode;
+    status_mode_ = s.status_mode;
     status_fault_bits_ = s.fault_bits;
     raw_eff_id_ = s.raw_eff_id;
     status_initialized_ = true;
@@ -213,7 +214,7 @@ bool CyberGear::updateFromReadParamResp(const struct can_frame & in, bool type_c
   std::lock_guard<std::mutex> lk(mu_);
   switch (index) {
     case RUN_MODE:
-      run_mode_ = byte_util::readLE32(data.data());
+      run_mode_ = static_cast<RunMode>(byte_util::readLE32(data.data()));
       initialized_params_.insert(index);
       return true;
     case IQ_REFERENCE:

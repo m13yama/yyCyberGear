@@ -33,10 +33,11 @@ std::string format_status_line(const CyberGear & cg, double t_sec)
       << " vel=" << s.vel_rad_s << "rad/s"
       << " tau=" << s.torque_Nm << "Nm"
       << " T=" << s.temperature_c << "C"
-      << " mode=" << static_cast<unsigned>(s.mode) << " faults=0x" << std::uppercase << std::hex
-      << std::setw(2) << std::setfill('0') << static_cast<unsigned>(s.fault_bits & 0xFFu)
-      << std::dec << " mid=0x" << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
-      << static_cast<unsigned>(s.motor_can_id) << std::dec;
+      << " mode=" << static_cast<unsigned>(s.status_mode) << " faults=0x" << std::uppercase
+      << std::hex << std::setw(2) << std::setfill('0')
+      << static_cast<unsigned>(s.fault_bits & 0xFFu) << std::dec << " mid=0x" << std::uppercase
+      << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(s.motor_can_id)
+      << std::dec;
   return oss.str();
 }
 
