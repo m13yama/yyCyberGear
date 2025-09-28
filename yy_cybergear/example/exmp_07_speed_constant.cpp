@@ -133,6 +133,22 @@ int main(int argc, char ** argv)
   // Start runtime
   rt.start();
 
+  // Write RunMode (0x7005) = Speed(2)
+  {
+    std::array<uint8_t, 4> data{static_cast<uint8_t>(2), 0, 0, 0};
+    struct can_frame tx
+    {
+    };
+    yy_cybergear::data_frame_handler::buildWriteParamReq(
+      host, motor, yy_cybergear::RUN_MODE, data, tx);
+    rt.post(yy_socket_can::TxRequest{ifname, tx});
+    if (verbose) {
+      const uint32_t id = tx.can_id & CAN_EFF_MASK;
+      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
+                << " (Write RUN_MODE=Speed)\n";
+    }
+  }
+
   // Enable motor once
   {
     struct can_frame tx
@@ -151,22 +167,6 @@ int main(int argc, char ** argv)
   while (g_running) {
     const auto start = clock::now();
     const auto deadline = start + dt_ns;
-
-    // Write RunMode (0x7005) = Speed(2)
-    {
-      std::array<uint8_t, 4> data{static_cast<uint8_t>(2), 0, 0, 0};
-      struct can_frame tx
-      {
-      };
-      yy_cybergear::data_frame_handler::buildWriteParamReq(
-        host, motor, yy_cybergear::RUN_MODE, data, tx);
-      rt.post(yy_socket_can::TxRequest{ifname, tx});
-      if (verbose) {
-        const uint32_t id = tx.can_id & CAN_EFF_MASK;
-        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
-                  << " (Write RUN_MODE=Speed)\n";
-      }
-    }
 
     // Write SPEED_REFERENCE (0x700A)
     {
