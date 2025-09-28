@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <linux/can.h>
+#include <poll.h>
+#include <unistd.h>
 
 #include <CLI/CLI.hpp>
 #include <atomic>
@@ -287,11 +289,16 @@ int main(int argc, char ** argv)
   }
   std::cout << "\nPress Enter to start monitoring (Ctrl+C to exit) ..." << std::endl;
   while (g_running) {
-    if (std::cin.rdbuf()->in_avail() > 0) {
-      int c = std::cin.get();
-      if (c == '\n' || c == '\r') break;  // start on Enter
-    } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    struct pollfd pfd;
+    pfd.fd = 0;  // stdin
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+    const int pret = ::poll(&pfd, 1, 200);  // 200 ms timeout
+    if (pret > 0 && (pfd.revents & POLLIN)) {
+      char ch = 0;
+      const ssize_t n = ::read(0, &ch, 1);
+      if (n > 0 && (ch == '\n' || ch == '\r')) break;  // start on Enter
+      // If other characters were typed, keep polling until newline arrives
     }
   }
   if (!g_running) {
