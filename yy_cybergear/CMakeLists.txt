@@ -29,13 +29,13 @@ set(TARGET exmp_02_operation_sin_wave)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
-# # exmp_04_position_sin_wave ============================
-# set(TARGET exmp_04_position_sin_wave)
-# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-# unset(TARGET)
+# exmp_03_position_sin_wave ============================
+set(TARGET exmp_03_position_sin_wave)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
 
-# exmp_05_speed_constant ============================
-set(TARGET exmp_05_speed_constant)
+# exmp_04_speed_constant ============================
+set(TARGET exmp_04_speed_constant)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
