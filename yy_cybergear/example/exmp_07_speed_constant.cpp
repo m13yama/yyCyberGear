@@ -20,6 +20,7 @@
 #include <linux/can.h>
 
 #include <CLI/CLI.hpp>
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -31,6 +32,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "yy_cybergear/data_frame_handler.hpp"
 #include "yy_cybergear/protocol_types.hpp"
@@ -62,7 +64,7 @@ int main(int argc, char ** argv)
 
   std::string ifname{"can0"};
   std::string host_id_str{"0x00"};
-  std::string motor_id_str{"0x01"};
+  std::vector<std::string> motor_id_strs{"0x01"};
   bool verbose = false;
 
   double speed_rad_s = 2.0;  // target speed [rad/s]
@@ -72,7 +74,11 @@ int main(int argc, char ** argv)
     ->capture_default_str();
   app.add_option("-H,--host-id", host_id_str, "Host ID (decimal or 0x-prefixed hex)")
     ->capture_default_str();
-  app.add_option("-M,--motor-id", motor_id_str, "Motor ID (decimal or 0x-prefixed hex)")
+  app
+    .add_option(
+      "-M,--motor-id", motor_id_strs,
+      "Motor ID(s) (repeat -M or comma-separated; decimal or 0x-prefixed hex)")
+    ->delimiter(',')
     ->capture_default_str();
   app.add_option("-s,--speed", speed_rad_s, "Target speed [rad/s] (negative allowed)")
     ->capture_default_str();
@@ -87,20 +93,42 @@ int main(int argc, char ** argv)
     return app.exit(e);
   }
 
-  unsigned long host_ul = 0x00UL, motor_ul = 0x01UL;
+  unsigned long host_ul = 0x00UL;
   try {
     host_ul = std::stoul(host_id_str, nullptr, 0);
-    motor_ul = std::stoul(motor_id_str, nullptr, 0);
   } catch (const std::exception & e) {
     std::cerr << "Invalid ID: " << e.what() << "\n";
     return EXIT_FAILURE;
   }
-  if (host_ul > 0xFFul || motor_ul > 0xFFul) {
-    std::cerr << "IDs must be 0..255 (got host=" << host_ul << ", motor=" << motor_ul << ")\n";
+  if (host_ul > 0xFFul) {
+    std::cerr << "Host ID must be 0..255 (got host=" << host_ul << ")\n";
     return EXIT_FAILURE;
   }
   const uint8_t host = static_cast<uint8_t>(host_ul & 0xFFu);
-  const uint8_t motor = static_cast<uint8_t>(motor_ul & 0xFFu);
+
+  // Parse multiple motor IDs
+  std::vector<uint8_t> motors;
+  motors.reserve(motor_id_strs.size());
+  for (const auto & s : motor_id_strs) {
+    try {
+      unsigned long v = std::stoul(s, nullptr, 0);
+      if (v > 0xFFul) {
+        std::cerr << "Motor ID must be 0..255 (got " << v << ")\n";
+        return EXIT_FAILURE;
+      }
+      const uint8_t mid = static_cast<uint8_t>(v & 0xFFu);
+      if (std::find(motors.begin(), motors.end(), mid) == motors.end()) {
+        motors.push_back(mid);
+      }
+    } catch (const std::exception & e) {
+      std::cerr << "Invalid motor ID '" << s << "': " << e.what() << "\n";
+      return EXIT_FAILURE;
+    }
+  }
+  if (motors.empty()) {
+    std::cerr << "No valid motor IDs provided.\n";
+    return EXIT_FAILURE;
+  }
 
   std::signal(SIGINT, handle_sigint);
 
@@ -114,27 +142,29 @@ int main(int argc, char ** argv)
   using clock = std::chrono::steady_clock;
   const auto t0 = clock::now();
 
-  // Register status handler for this motor (type 2 range)
-  const uint32_t min_id = (2u << 24) | (static_cast<uint32_t>(motor) << 8);
-  const uint32_t max_id =
-    (2u << 24) | (3u << 22) | (0x3Fu << 16) | (static_cast<uint32_t>(motor) << 8) | 0xFFu;
-  rt.register_handler(min_id, max_id, [verbose, t0](const struct can_frame & f) {
-    Status st{};
-    if (!parseStatus(f, st)) return;
-    const double t = std::chrono::duration<double>(clock::now() - t0).count();
-    if (verbose) {
-      const uint32_t id = f.can_id & CAN_EFF_MASK;
-      std::cout << "RX 0x" << std::hex << std::uppercase << id << std::dec
-                << " dlc=" << int(f.can_dlc) << "\n";
-    }
-    print_status(st, t);
-  });
+  // Register status handlers for each motor (type 2 range)
+  for (uint8_t motor : motors) {
+    const uint32_t min_id = (2u << 24) | (static_cast<uint32_t>(motor) << 8);
+    const uint32_t max_id =
+      (2u << 24) | (3u << 22) | (0x3Fu << 16) | (static_cast<uint32_t>(motor) << 8) | 0xFFu;
+    rt.register_handler(min_id, max_id, [verbose, t0](const struct can_frame & f) {
+      Status st{};
+      if (!parseStatus(f, st)) return;
+      const double t = std::chrono::duration<double>(clock::now() - t0).count();
+      if (verbose) {
+        const uint32_t id = f.can_id & CAN_EFF_MASK;
+        std::cout << "RX 0x" << std::hex << std::uppercase << id << std::dec
+                  << " dlc=" << int(f.can_dlc) << "\n";
+      }
+      print_status(st, t);
+    });
+  }
 
   // Start runtime
   rt.start();
 
-  // Write RunMode (0x7005) = Speed(2)
-  {
+  // Write RunMode (0x7005) = Speed(2) for each motor
+  for (uint8_t motor : motors) {
     std::array<uint8_t, 4> data{static_cast<uint8_t>(2), 0, 0, 0};
     struct can_frame tx
     {
@@ -149,8 +179,8 @@ int main(int argc, char ** argv)
     }
   }
 
-  // Enable motor once
-  {
+  // Enable motors
+  for (uint8_t motor : motors) {
     struct can_frame tx
     {
     };
@@ -168,8 +198,8 @@ int main(int argc, char ** argv)
     const auto start = clock::now();
     const auto deadline = start + dt_ns;
 
-    // Write SPEED_REFERENCE (0x700A)
-    {
+    // Write SPEED_REFERENCE (0x700A) for each motor
+    for (uint8_t motor : motors) {
       float v = static_cast<float>(speed_rad_s);
       std::array<uint8_t, 4> raw{0, 0, 0, 0};
       std::memcpy(raw.data(), &v, 4);
@@ -191,8 +221,8 @@ int main(int argc, char ** argv)
     std::this_thread::sleep_until(deadline);
   }
 
-  // Stop motor safely on exit
-  {
+  // Stop motors safely on exit
+  for (uint8_t motor : motors) {
     struct can_frame tx
     {
     };
