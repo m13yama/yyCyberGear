@@ -34,6 +34,95 @@ class CyberGear
 public:
   explicit CyberGear(uint8_t host_id, uint8_t motor_id) : host_id_(host_id), motor_id_(motor_id) {}
 
+  // Non-copyable due to mutex member
+  CyberGear(const CyberGear &) = delete;
+  CyberGear & operator=(const CyberGear &) = delete;
+
+  // Move-constructible/assignable to allow storage in std::vector
+  CyberGear(CyberGear && other) noexcept
+  {
+    // It's safe to copy raw fields while holding other's lock
+    std::lock_guard<std::mutex> lk(other.mu_);
+    host_id_ = other.host_id_;
+    motor_id_ = other.motor_id_;
+
+    angle_rad_ = other.angle_rad_;
+    vel_rad_s_ = other.vel_rad_s_;
+    torque_Nm_ = other.torque_Nm_;
+    temperature_c_ = other.temperature_c_;
+    motor_can_id_ = other.motor_can_id_;
+    mode_ = other.mode_;
+    fault_bits_ = other.fault_bits_;
+    raw_eff_id_ = other.raw_eff_id_;
+
+    faults_bits_ = other.faults_bits_;
+    warnings_bits_ = other.warnings_bits_;
+
+    uid_ = other.uid_;
+
+    run_mode_ = other.run_mode_;
+    iq_reference_ = other.iq_reference_;
+    speed_reference_ = other.speed_reference_;
+    torque_limit_ = other.torque_limit_;
+    current_kp_ = other.current_kp_;
+    current_ki_ = other.current_ki_;
+    current_filter_gain_ = other.current_filter_gain_;
+    position_reference_ = other.position_reference_;
+    speed_limit_ = other.speed_limit_;
+    current_limit_ = other.current_limit_;
+    mechanical_position_ = other.mechanical_position_;
+    iq_filter_ = other.iq_filter_;
+    mechanical_velocity_ = other.mechanical_velocity_;
+    bus_voltage_ = other.bus_voltage_;
+    rotation_turns_ = other.rotation_turns_;
+    position_kp_ = other.position_kp_;
+    speed_kp_ = other.speed_kp_;
+    speed_ki_ = other.speed_ki_;
+  }
+
+  CyberGear & operator=(CyberGear && other) noexcept
+  {
+    if (this != &other) {
+      std::scoped_lock lk(mu_, other.mu_);
+      host_id_ = other.host_id_;
+      motor_id_ = other.motor_id_;
+
+      angle_rad_ = other.angle_rad_;
+      vel_rad_s_ = other.vel_rad_s_;
+      torque_Nm_ = other.torque_Nm_;
+      temperature_c_ = other.temperature_c_;
+      motor_can_id_ = other.motor_can_id_;
+      mode_ = other.mode_;
+      fault_bits_ = other.fault_bits_;
+      raw_eff_id_ = other.raw_eff_id_;
+
+      faults_bits_ = other.faults_bits_;
+      warnings_bits_ = other.warnings_bits_;
+
+      uid_ = other.uid_;
+
+      run_mode_ = other.run_mode_;
+      iq_reference_ = other.iq_reference_;
+      speed_reference_ = other.speed_reference_;
+      torque_limit_ = other.torque_limit_;
+      current_kp_ = other.current_kp_;
+      current_ki_ = other.current_ki_;
+      current_filter_gain_ = other.current_filter_gain_;
+      position_reference_ = other.position_reference_;
+      speed_limit_ = other.speed_limit_;
+      current_limit_ = other.current_limit_;
+      mechanical_position_ = other.mechanical_position_;
+      iq_filter_ = other.iq_filter_;
+      mechanical_velocity_ = other.mechanical_velocity_;
+      bus_voltage_ = other.bus_voltage_;
+      rotation_turns_ = other.rotation_turns_;
+      position_kp_ = other.position_kp_;
+      speed_kp_ = other.speed_kp_;
+      speed_ki_ = other.speed_ki_;
+    }
+    return *this;
+  }
+
   // IDs
   uint8_t host_id() const { return host_id_; }
   uint8_t motor_id() const { return motor_id_; }
