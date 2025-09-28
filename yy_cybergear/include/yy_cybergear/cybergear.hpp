@@ -34,7 +34,10 @@ namespace yy_cybergear
 class CyberGear
 {
 public:
-  explicit CyberGear(uint8_t host_id, uint8_t motor_id) : host_id_(host_id), motor_id_(motor_id) {}
+  explicit CyberGear(uint8_t host_id, uint8_t motor_id) noexcept
+  : host_id_(host_id), motor_id_(motor_id)
+  {
+  }
 
   // Non-copyable due to mutex member
   CyberGear(const CyberGear &) = delete;
@@ -54,11 +57,11 @@ public:
     temperature_c_ = other.temperature_c_;
     motor_can_id_ = other.motor_can_id_;
     mode_ = other.mode_;
-    fault_bits_ = other.fault_bits_;
+    status_fault_bits_ = other.status_fault_bits_;
     raw_eff_id_ = other.raw_eff_id_;
 
-    faults_bits_ = other.faults_bits_;
-    warnings_bits_ = other.warnings_bits_;
+    fault_bits_agg_ = other.fault_bits_agg_;
+    warning_bits_agg_ = other.warning_bits_agg_;
 
     uid_ = other.uid_;
 
@@ -95,11 +98,11 @@ public:
       temperature_c_ = other.temperature_c_;
       motor_can_id_ = other.motor_can_id_;
       mode_ = other.mode_;
-      fault_bits_ = other.fault_bits_;
+      status_fault_bits_ = other.status_fault_bits_;
       raw_eff_id_ = other.raw_eff_id_;
 
-      faults_bits_ = other.faults_bits_;
-      warnings_bits_ = other.warnings_bits_;
+      fault_bits_agg_ = other.fault_bits_agg_;
+      warning_bits_agg_ = other.warning_bits_agg_;
 
       uid_ = other.uid_;
 
@@ -126,108 +129,139 @@ public:
   }
 
   // IDs
-  uint8_t host_id() const { return host_id_; }
-  uint8_t motor_id() const { return motor_id_; }
-  void set_host_id(uint8_t v) { host_id_ = v; }
-  void set_motor_id(uint8_t v) { motor_id_ = v; }
+  uint8_t host_id() const noexcept { return host_id_; }
+  uint8_t motor_id() const noexcept { return motor_id_; }
+  void set_host_id(uint8_t v) noexcept { host_id_ = v; }
+  void set_motor_id(uint8_t v) noexcept { motor_id_ = v; }
 
   // ===== Basic requests =====
-  void buildGetDeviceId(struct can_frame & out) const;
-  void buildEnable(struct can_frame & out) const;
-  void buildStop(struct can_frame & out) const;
-  void buildClearFaults(struct can_frame & out) const;
-  void buildSetMechanicalZero(struct can_frame & out) const;
-  void buildChangeMotorId(uint8_t new_motor_id, struct can_frame & out) const;
-  void buildOpControl(const OpCommand & cmd, struct can_frame & out) const;
-  void buildSetBaudRate(uint8_t code, struct can_frame & out) const;
+  void buildGetDeviceId(struct can_frame & out) const noexcept;
+  void buildEnable(struct can_frame & out) const noexcept;
+  void buildStop(struct can_frame & out) const noexcept;
+  void buildClearFaults(struct can_frame & out) const noexcept;
+  void buildSetMechanicalZero(struct can_frame & out) const noexcept;
+  void buildChangeMotorId(uint8_t new_motor_id, struct can_frame & out) const noexcept;
+  void buildOpControl(const OpCommand & cmd, struct can_frame & out) const noexcept;
+  void buildSetBaudRate(uint8_t code, struct can_frame & out) const noexcept;
 
   // ===== Generic parameter get/set =====
-  void buildReadParam(uint16_t index, struct can_frame & out) const;
+  void buildReadParam(uint16_t index, struct can_frame & out) const noexcept;
   void buildWriteParam(
-    uint16_t index, const std::array<uint8_t, 4> & data, struct can_frame & out) const;
+    uint16_t index, const std::array<uint8_t, 4> & data, struct can_frame & out) const noexcept;
 
   // ===== Per-parameter helpers =====
   // RUN_MODE (0x7005): 0 reset, 1 cali, 2 run
-  void buildGetRunMode(struct can_frame & out) const { buildReadParam(RUN_MODE, out); }
-  void buildSetRunMode(uint32_t mode, struct can_frame & out) const;
+  void buildGetRunMode(struct can_frame & out) const noexcept { buildReadParam(RUN_MODE, out); }
+  void buildSetRunMode(uint32_t mode, struct can_frame & out) const noexcept;
 
   // IQ_REFERENCE (A)
-  void buildGetIqReference(struct can_frame & out) const { buildReadParam(IQ_REFERENCE, out); }
-  void buildSetIqReference(float ampere, struct can_frame & out) const;
+  void buildGetIqReference(struct can_frame & out) const noexcept
+  {
+    buildReadParam(IQ_REFERENCE, out);
+  }
+  void buildSetIqReference(float ampere, struct can_frame & out) const noexcept;
 
   // SPEED_REFERENCE (rad/s)
-  void buildGetSpeedReference(struct can_frame & out) const
+  void buildGetSpeedReference(struct can_frame & out) const noexcept
   {
     buildReadParam(SPEED_REFERENCE, out);
   }
-  void buildSetSpeedReference(float rad_s, struct can_frame & out) const;
+  void buildSetSpeedReference(float rad_s, struct can_frame & out) const noexcept;
 
   // TORQUE_LIMIT (Nm)
-  void buildGetTorqueLimit(struct can_frame & out) const { buildReadParam(TORQUE_LIMIT, out); }
-  void buildSetTorqueLimit(float nm, struct can_frame & out) const;
+  void buildGetTorqueLimit(struct can_frame & out) const noexcept
+  {
+    buildReadParam(TORQUE_LIMIT, out);
+  }
+  void buildSetTorqueLimit(float nm, struct can_frame & out) const noexcept;
 
   // CURRENT loop gains / filter
-  void buildGetCurrentKp(struct can_frame & out) const { buildReadParam(CURRENT_KP, out); }
-  void buildSetCurrentKp(float v, struct can_frame & out) const;
-  void buildGetCurrentKi(struct can_frame & out) const { buildReadParam(CURRENT_KI, out); }
-  void buildSetCurrentKi(float v, struct can_frame & out) const;
-  void buildGetCurrentFilterGain(struct can_frame & out) const
+  void buildGetCurrentKp(struct can_frame & out) const noexcept
+  {
+    buildReadParam(CURRENT_KP, out);
+  }
+  void buildSetCurrentKp(float v, struct can_frame & out) const noexcept;
+  void buildGetCurrentKi(struct can_frame & out) const noexcept
+  {
+    buildReadParam(CURRENT_KI, out);
+  }
+  void buildSetCurrentKi(float v, struct can_frame & out) const noexcept;
+  void buildGetCurrentFilterGain(struct can_frame & out) const noexcept
   {
     buildReadParam(CURRENT_FILTER_GAIN, out);
   }
-  void buildSetCurrentFilterGain(float v, struct can_frame & out) const;
+  void buildSetCurrentFilterGain(float v, struct can_frame & out) const noexcept;
 
   // Position/Speed/Current references and limits
-  void buildGetPositionReference(struct can_frame & out) const
+  void buildGetPositionReference(struct can_frame & out) const noexcept
   {
     buildReadParam(POSITION_REFERENCE, out);
   }
-  void buildSetPositionReference(float rad, struct can_frame & out) const;
-  void buildGetSpeedLimit(struct can_frame & out) const { buildReadParam(SPEED_LIMIT, out); }
-  void buildSetSpeedLimit(float rad_s, struct can_frame & out) const;
-  void buildGetCurrentLimit(struct can_frame & out) const { buildReadParam(CURRENT_LIMIT, out); }
-  void buildSetCurrentLimit(float ampere, struct can_frame & out) const;
+  void buildSetPositionReference(float rad, struct can_frame & out) const noexcept;
+  void buildGetSpeedLimit(struct can_frame & out) const noexcept
+  {
+    buildReadParam(SPEED_LIMIT, out);
+  }
+  void buildSetSpeedLimit(float rad_s, struct can_frame & out) const noexcept;
+  void buildGetCurrentLimit(struct can_frame & out) const noexcept
+  {
+    buildReadParam(CURRENT_LIMIT, out);
+  }
+  void buildSetCurrentLimit(float ampere, struct can_frame & out) const noexcept;
 
   // Telemetry values (also provide set in case firmware allows writing)
-  void buildGetMechanicalPosition(struct can_frame & out) const
+  void buildGetMechanicalPosition(struct can_frame & out) const noexcept
   {
     buildReadParam(MECHANICAL_POSITION, out);
   }
-  void buildSetMechanicalPosition(float rad, struct can_frame & out) const;
-  void buildGetIqFilter(struct can_frame & out) const { buildReadParam(IQ_FILTER, out); }
-  void buildSetIqFilter(float ampere, struct can_frame & out) const;
-  void buildGetMechanicalVelocity(struct can_frame & out) const
+  void buildSetMechanicalPosition(float rad, struct can_frame & out) const noexcept;
+  void buildGetIqFilter(struct can_frame & out) const noexcept { buildReadParam(IQ_FILTER, out); }
+  void buildSetIqFilter(float ampere, struct can_frame & out) const noexcept;
+  void buildGetMechanicalVelocity(struct can_frame & out) const noexcept
   {
     buildReadParam(MECHANICAL_VELOCITY, out);
   }
-  void buildSetMechanicalVelocity(float rad_s, struct can_frame & out) const;
-  void buildGetBusVoltage(struct can_frame & out) const { buildReadParam(BUS_VOLTAGE, out); }
-  void buildSetBusVoltage(float volt, struct can_frame & out) const;
-  void buildGetRotationTurns(struct can_frame & out) const { buildReadParam(ROTATION_TURNS, out); }
-  void buildSetRotationTurns(int16_t turns, struct can_frame & out) const;
+  void buildSetMechanicalVelocity(float rad_s, struct can_frame & out) const noexcept;
+  void buildGetBusVoltage(struct can_frame & out) const noexcept
+  {
+    buildReadParam(BUS_VOLTAGE, out);
+  }
+  void buildSetBusVoltage(float volt, struct can_frame & out) const noexcept;
+  void buildGetRotationTurns(struct can_frame & out) const noexcept
+  {
+    buildReadParam(ROTATION_TURNS, out);
+  }
+  void buildSetRotationTurns(int16_t turns, struct can_frame & out) const noexcept;
 
   // Position/Speed loop gains
-  void buildGetPositionKp(struct can_frame & out) const { buildReadParam(POSITION_KP, out); }
-  void buildSetPositionKp(float v, struct can_frame & out) const;
-  void buildGetSpeedKp(struct can_frame & out) const { buildReadParam(SPEED_KP, out); }
-  void buildSetSpeedKp(float v, struct can_frame & out) const;
-  void buildGetSpeedKi(struct can_frame & out) const { buildReadParam(SPEED_KI, out); }
-  void buildSetSpeedKi(float v, struct can_frame & out) const;
+  void buildGetPositionKp(struct can_frame & out) const noexcept
+  {
+    buildReadParam(POSITION_KP, out);
+  }
+  void buildSetPositionKp(float v, struct can_frame & out) const noexcept;
+  void buildGetSpeedKp(struct can_frame & out) const noexcept { buildReadParam(SPEED_KP, out); }
+  void buildSetSpeedKp(float v, struct can_frame & out) const noexcept;
+  void buildGetSpeedKi(struct can_frame & out) const noexcept { buildReadParam(SPEED_KI, out); }
+  void buildSetSpeedKi(float v, struct can_frame & out) const noexcept;
 
   // ===== Frame-driven updaters (no existing structs used) =====
   // Parse and update internal status fields from a status frame (type==2)
-  bool updateFromStatusFrame(const struct can_frame & in, bool type_check = true);
+  [[nodiscard]] bool updateFromStatusFrame(
+    const struct can_frame & in, bool type_check = true) noexcept;
   // Parse and update UID from device-id response (type==0, low8==0xFE); uses motor_id_
-  bool updateFromDeviceIdResp(const struct can_frame & in, bool type_check = true);
+  [[nodiscard]] bool updateFromDeviceIdResp(
+    const struct can_frame & in, bool type_check = true) noexcept;
   // Parse and update fault/warning snapshot from type==21 response (uses host_id_)
-  bool updateFromFaultWarningResp(const struct can_frame & in, bool type_check = true);
+  [[nodiscard]] bool updateFromFaultWarningResp(
+    const struct can_frame & in, bool type_check = true) noexcept;
   // Parse and update any known parameter value from type==17 read-param response (uses host_id_)
-  bool updateFromReadParamResp(const struct can_frame & in, bool type_check = true);
+  [[nodiscard]] bool updateFromReadParamResp(
+    const struct can_frame & in, bool type_check = true) noexcept;
 
   // Dispatch a received frame by its type and update internal state accordingly.
   // Returns which kind of update was applied (or None if not applicable).
   enum class UpdateKind : uint8_t { None = 0, DeviceId, Status, FaultWarning, ReadParam, Ignored };
-  UpdateKind dispatchAndUpdate(const struct can_frame & in);
+  [[nodiscard]] UpdateKind dispatchAndUpdate(const struct can_frame & in) noexcept;
 
   // ===== Status getters =====
   struct StatusSnapshot
@@ -243,166 +277,170 @@ public:
   };
 
   // Thread-safe snapshot of status fields
-  StatusSnapshot getStatus() const
+  [[nodiscard]] StatusSnapshot getStatus() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return StatusSnapshot{angle_rad_,    vel_rad_s_, torque_Nm_,  temperature_c_,
-                          motor_can_id_, mode_,      fault_bits_, raw_eff_id_};
+    return StatusSnapshot{angle_rad_,    vel_rad_s_, torque_Nm_,         temperature_c_,
+                          motor_can_id_, mode_,      status_fault_bits_, raw_eff_id_};
   }
 
   // Backward-compatible per-field getters (thread-safe)
-  float angle_rad() const
+  float angle_rad() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return angle_rad_;
   }
-  float vel_rad_s() const
+  float vel_rad_s() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return vel_rad_s_;
   }
-  float torque_Nm() const
+  float torque_Nm() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return torque_Nm_;
   }
-  float temperature_c() const
+  float temperature_c() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return temperature_c_;
   }
-  uint8_t motor_can_id() const
+  uint8_t motor_can_id() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return motor_can_id_;
   }
-  uint8_t mode() const
+  uint8_t mode() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return mode_;
   }
-  uint8_t fault_bits() const
+  uint8_t fault_bits() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return fault_bits_;
+    return status_fault_bits_;
   }
-  uint32_t raw_eff_id() const
+  uint32_t raw_eff_id() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return raw_eff_id_;
   }
 
   // ===== Fault/Warning getters =====
-  uint32_t faults_bits() const
+  uint32_t faults_bits() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return faults_bits_;
+    return fault_bits_agg_;
   }
-  uint32_t warnings_bits() const
+  uint32_t warnings_bits() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
-    return warnings_bits_;
+    return warning_bits_agg_;
   }
 
+  // New descriptive accessors (non-breaking: keep old ones above)
+  uint32_t fault_bits_agg() const noexcept { return faults_bits(); }
+  uint32_t warning_bits_agg() const noexcept { return warnings_bits(); }
+
   // ===== UID getter =====
-  std::array<uint8_t, kUidLen> uid() const
+  std::array<uint8_t, kUidLen> uid() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return uid_;
   }
-  bool isUidInitialized() const
+  bool isUidInitialized() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return uid_initialized_;
   }
 
   // ===== Parameter getters (mirror) =====
-  uint32_t run_mode() const
+  uint32_t run_mode() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return run_mode_;
   }
-  float iq_reference() const
+  float iq_reference() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return iq_reference_;
   }
-  float speed_reference() const
+  float speed_reference() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return speed_reference_;
   }
-  float torque_limit() const
+  float torque_limit() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return torque_limit_;
   }
-  float current_kp() const
+  float current_kp() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return current_kp_;
   }
-  float current_ki() const
+  float current_ki() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return current_ki_;
   }
-  float current_filter_gain() const
+  float current_filter_gain() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return current_filter_gain_;
   }
-  float position_reference() const
+  float position_reference() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return position_reference_;
   }
-  float speed_limit() const
+  float speed_limit() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return speed_limit_;
   }
-  float current_limit() const
+  float current_limit() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return current_limit_;
   }
-  float mechanical_position() const
+  float mechanical_position() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return mechanical_position_;
   }
-  float iq_filter() const
+  float iq_filter() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return iq_filter_;
   }
-  float mechanical_velocity() const
+  float mechanical_velocity() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return mechanical_velocity_;
   }
-  float bus_voltage() const
+  float bus_voltage() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return bus_voltage_;
   }
-  int16_t rotation_turns() const
+  int16_t rotation_turns() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return rotation_turns_;
   }
-  float position_kp() const
+  float position_kp() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return position_kp_;
   }
-  float speed_kp() const
+  float speed_kp() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return speed_kp_;
   }
-  float speed_ki() const
+  float speed_ki() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return speed_ki_;
@@ -410,19 +448,20 @@ public:
 
   // ===== Initialization flags helpers =====
   // True after the first status frame has been applied
-  bool isStatusInitialized() const
+  [[nodiscard]] bool isStatusInitialized() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return status_initialized_;
   }
   // True if a given parameter index has been received at least once via ReadParam response
-  bool isParamInitialized(uint16_t index) const
+  [[nodiscard]] bool isParamInitialized(uint16_t index) const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return initialized_params_.find(index) != initialized_params_.end();
   }
   // Convenience: check a list of indices; optionally require UID as well
-  bool isInitializedFor(const std::vector<uint16_t> & indices, bool require_uid = true) const
+  [[nodiscard]] bool isInitializedFor(
+    const std::vector<uint16_t> & indices, bool require_uid = true) const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     if (require_uid && !uid_initialized_) return false;
@@ -447,12 +486,12 @@ private:
   float temperature_c_{0.0f};
   uint8_t motor_can_id_{0};
   uint8_t mode_{0};
-  uint8_t fault_bits_{0};
+  uint8_t status_fault_bits_{0};
   uint32_t raw_eff_id_{0};
 
   // Fault/Warning snapshot
-  uint32_t faults_bits_{0};
-  uint32_t warnings_bits_{0};
+  uint32_t fault_bits_agg_{0};
+  uint32_t warning_bits_agg_{0};
 
   // UID
   std::array<uint8_t, kUidLen> uid_{};

@@ -66,12 +66,6 @@ inline constexpr uint16_t readLE16(const uint8_t * p)
     (static_cast<uint16_t>(p[0]) << 0) | (static_cast<uint16_t>(p[1]) << 8));
 }
 
-inline constexpr uint32_t readLE32(const uint8_t * p)
-{
-  return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
-         (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
-}
-
 inline constexpr std::array<uint8_t, 4> packLE32(uint32_t v)
 {
   return {
@@ -93,6 +87,22 @@ inline constexpr std::array<uint8_t, 4> packLEf(float v)
   static_assert(sizeof(float) == 4, "float must be 32-bit IEEE754");
   const uint32_t u = bit_cast<uint32_t>(v);
   return packLE32(u);
+}
+
+inline constexpr uint32_t readLE32(const uint8_t * p)
+{
+  return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
+         (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+}
+
+// Read little-endian signed 16-bit integer stored in the first two bytes.
+inline constexpr int16_t readLE16s(const uint8_t * p) { return static_cast<int16_t>(readLE16(p)); }
+
+// Read little-endian IEEE754 float stored in 4 bytes.
+inline constexpr float readLEf(const uint8_t * p)
+{
+  const uint32_t u = readLE32(p);
+  return bit_cast<float>(u);
 }
 
 inline constexpr std::array<uint8_t, 4> packLE16u(uint16_t v)

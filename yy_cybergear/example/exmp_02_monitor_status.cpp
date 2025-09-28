@@ -32,6 +32,7 @@
 
 #include "yy_cybergear/cybergear.hpp"
 #include "yy_cybergear/data_frame_handler.hpp"
+#include "yy_cybergear/logging.hpp"
 #include "yy_socket_can/can_runtime.hpp"
 
 namespace
@@ -39,43 +40,15 @@ namespace
 std::atomic<bool> g_running{true};
 void handle_sigint(int) { g_running = false; }
 
-void print_status(const yy_cybergear::CyberGear & cg, double t_sec)
+// Centralized logging lives in yy_cybergear/logging.hpp
+inline void print_status(const yy_cybergear::CyberGear & cg, double t_sec)
 {
-  const auto s = cg.getStatus();
-  std::cout << std::fixed << std::setprecision(3) << " t=" << t_sec << "s"
-            << " ang=" << s.angle_rad << "rad"
-            << " vel=" << s.vel_rad_s << "rad/s"
-            << " tau=" << s.torque_Nm << "Nm"
-            << " T=" << s.temperature_c << "C"
-            << " mode=" << static_cast<unsigned>(s.mode) << " faults=0b" << std::uppercase
-            << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(s.fault_bits)
-            << std::dec << " mid=0x" << std::uppercase << std::hex << std::setw(2)
-            << std::setfill('0') << static_cast<unsigned>(s.motor_can_id) << std::dec << '\n';
+  std::cout << yy_cybergear::logging::format_status_line(cg, t_sec) << '\n';
 }
 
-void print_params(const yy_cybergear::CyberGear & cg)
+inline void print_params(const yy_cybergear::CyberGear & cg)
 {
-  // Print a concise parameter summary (limits and gains)
-  const auto uid = cg.uid();
-  std::cout << std::fixed << std::setprecision(3) << "  motor_id=0x" << std::uppercase << std::hex
-            << std::setw(2) << std::setfill('0') << static_cast<unsigned>(cg.motor_id())
-            << std::dec << "\n"
-            << "    uid              = 0x" << std::uppercase << std::hex << std::setw(2)
-            << std::setfill('0') << static_cast<unsigned>(uid[0]) << std::setw(2)
-            << static_cast<unsigned>(uid[1]) << std::setw(2) << static_cast<unsigned>(uid[2])
-            << std::setw(2) << static_cast<unsigned>(uid[3]) << std::setw(2)
-            << static_cast<unsigned>(uid[4]) << std::setw(2) << static_cast<unsigned>(uid[5])
-            << std::setw(2) << static_cast<unsigned>(uid[6]) << std::setw(2)
-            << static_cast<unsigned>(uid[7]) << std::dec << "\n"
-            << "    speed_limit      = " << cg.speed_limit() << " rad/s\n"
-            << "    current_limit    = " << cg.current_limit() << " A\n"
-            << "    torque_limit     = " << cg.torque_limit() << " Nm\n"
-            << "    current_kp       = " << cg.current_kp() << "\n"
-            << "    current_ki       = " << cg.current_ki() << "\n"
-            << "    current_filter   = " << cg.current_filter_gain() << "\n"
-            << "    position_kp      = " << cg.position_kp() << "\n"
-            << "    speed_kp         = " << cg.speed_kp() << "\n"
-            << "    speed_ki         = " << cg.speed_ki() << "\n";
+  std::cout << yy_cybergear::logging::format_params_summary(cg);
 }
 }  // namespace
 
