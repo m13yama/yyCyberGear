@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Implement exmp_05 (constant speed) using CanRuntime framework (no CyberGear class).
-// - Periodically set RunMode=Speed and write SPEED_REFERENCE parameter
-// - Enable motor once at start, stop on exit
-// - Receive and print type-2 status via dispatcher
+// Implement constant speed control using CanRuntime + CyberGear helper.
+// - Enable motor once at start, set RunMode=2 (run)
+// - Periodically write SPEED_REFERENCE parameter for each motor
+// - Receive frames through a single dispatcher and update internal state
+// - Print status snapshots from the main loop (thread-safe)
 
 #include <linux/can.h>
 
 #include <CLI/CLI.hpp>
-#include <algorithm>
-#include <array>
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -34,8 +33,7 @@
 #include <thread>
 #include <vector>
 
-#include "yy_cybergear/data_frame_handler.hpp"
-#include "yy_cybergear/protocol_types.hpp"
+#include "yy_cybergear/cybergear.hpp"
 #include "yy_socket_can/can_runtime.hpp"
 
 namespace
@@ -43,18 +41,18 @@ namespace
 std::atomic<bool> g_running{true};
 void handle_signal(int) { g_running = false; }
 
-void print_status(const yy_cybergear::Status & st, double t_sec)
+void print_status(const yy_cybergear::CyberGear & cg, double t_sec)
 {
+  const auto s = cg.getStatus();
   std::cout << std::fixed << std::setprecision(3) << " t=" << t_sec << "s"
-            << " ang=" << st.angle_rad << "rad"
-            << " vel=" << st.vel_rad_s << "rad/s"
-            << " tau=" << st.torque_Nm << "Nm"
-            << " T=" << st.temperature_c << "C"
-            << " mode=" << static_cast<unsigned>(st.mode) << " faults=0b" << std::uppercase
-            << std::hex << std::setw(2) << std::setfill('0')
-            << static_cast<unsigned>(st.fault_bits) << std::dec << " mid=0x" << std::uppercase
-            << std::hex << std::setw(2) << std::setfill('0')
-            << static_cast<unsigned>(st.motor_can_id) << std::dec << '\n';
+            << " ang=" << s.angle_rad << "rad"
+            << " vel=" << s.vel_rad_s << "rad/s"
+            << " tau=" << s.torque_Nm << "Nm"
+            << " T=" << s.temperature_c << "C"
+            << " mode=" << static_cast<unsigned>(s.mode) << " faults=0b" << std::uppercase
+            << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(s.fault_bits)
+            << std::dec << " mid=0x" << std::uppercase << std::hex << std::setw(2)
+            << std::setfill('0') << static_cast<unsigned>(s.motor_can_id) << std::dec << '\n';
 }
 }  // namespace
 
@@ -116,10 +114,7 @@ int main(int argc, char ** argv)
         std::cerr << "Motor ID must be 0..255 (got " << v << ")\n";
         return EXIT_FAILURE;
       }
-      const uint8_t mid = static_cast<uint8_t>(v & 0xFFu);
-      if (std::find(motors.begin(), motors.end(), mid) == motors.end()) {
-        motors.push_back(mid);
-      }
+      motors.push_back(static_cast<uint8_t>(v & 0xFFu));
     } catch (const std::exception & e) {
       std::cerr << "Invalid motor ID '" << s << "': " << e.what() << "\n";
       return EXIT_FAILURE;
@@ -138,54 +133,65 @@ int main(int argc, char ** argv)
   rt.setWarningLogger([](const std::string & m) { std::cerr << m << std::endl; });
   rt.addChannel(ifname);
 
-  using yy_cybergear::Status;
-  using yy_cybergear::data_frame_handler::parseStatus;
   using clock = std::chrono::steady_clock;
   const auto t0 = clock::now();
 
-  // Register status handlers for each motor (type 2 range)
-  for (uint8_t motor : motors) {
-    const uint32_t min_id = (2u << 24) | (static_cast<uint32_t>(motor) << 8);
-    const uint32_t max_id =
-      (2u << 24) | (3u << 22) | (0x3Fu << 16) | (static_cast<uint32_t>(motor) << 8) | 0xFFu;
-    rt.registerHandler(min_id, max_id, [verbose, t0](const struct can_frame & f) {
-      Status st{};
-      if (!parseStatus(f, st)) return;
-      const double t = std::chrono::duration<double>(clock::now() - t0).count();
+  // Create a CyberGear instance per motor
+  std::vector<yy_cybergear::CyberGear> cgs;
+  cgs.reserve(motors.size());
+  for (auto m : motors) cgs.emplace_back(host, m);
+
+  // Register a handler for all extended IDs and let CyberGear filter/parse
+  const uint32_t min_id = 0u;
+  const uint32_t max_id = CAN_EFF_MASK;
+  rt.registerHandler(min_id, max_id, [verbose, &cgs](const struct can_frame & f) {
+    for (auto & cg : cgs) {
+      const auto kind = cg.dispatchAndUpdate(f);
+      if (
+        kind == yy_cybergear::CyberGear::UpdateKind::Ignored ||
+        kind == yy_cybergear::CyberGear::UpdateKind::None) {
+        continue;
+      }
       if (verbose) {
         const uint32_t id = f.can_id & CAN_EFF_MASK;
         std::cout << "RX 0x" << std::hex << std::uppercase << id << std::dec
                   << " dlc=" << int(f.can_dlc) << "\n";
       }
-      print_status(st, t);
-    });
-  }
+      // No break: multiple instances theoretically could match
+    }
+  });
 
   // Start runtime
   rt.start();
 
-  // Write RunMode (0x7005) = Speed(2) for each motor
-  for (uint8_t motor : motors) {
-    std::array<uint8_t, 4> data{static_cast<uint8_t>(2), 0, 0, 0};
+  // Print monitored motors list
+  std::cout << "Speed control motors [";
+  for (size_t i = 0; i < motors.size(); ++i) {
+    if (i) std::cout << ", ";
+    std::cout << "0x" << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+              << static_cast<unsigned>(motors[i]);
+  }
+  std::cout << std::dec << "] on " << ifname << ", target=" << speed_rad_s
+            << " rad/s, rate=" << rate_hz << " Hz" << '\n';
+
+  // Set RunMode=2 (run) and Enable motors
+  for (auto & cg : cgs) {
     struct can_frame tx
     {
     };
-    yy_cybergear::data_frame_handler::buildWriteParamReq(
-      host, motor, yy_cybergear::RUN_MODE, data, tx);
+    cg.buildSetRunMode(2u, tx);
     rt.post(yy_socket_can::TxRequest{ifname, tx});
     if (verbose) {
       const uint32_t id = tx.can_id & CAN_EFF_MASK;
       std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
-                << " (Write RUN_MODE=Speed)\n";
+                << " (Write RUN_MODE=2)\n";
     }
   }
-
-  // Enable motors
-  for (uint8_t motor : motors) {
+  for (auto & cg : cgs) {
     struct can_frame tx
     {
     };
-    yy_cybergear::data_frame_handler::buildEnableReq(host, motor, tx);
+    cg.buildEnable(tx);
     rt.post(yy_socket_can::TxRequest{ifname, tx});
     if (verbose) {
       const uint32_t id = tx.can_id & CAN_EFF_MASK;
@@ -198,17 +204,19 @@ int main(int argc, char ** argv)
   while (g_running && rt.isRunning()) {
     const auto start = clock::now();
     const auto deadline = start + dt_ns;
+    const double t_now = std::chrono::duration<double>(start - t0).count();
+
+    // Print snapshot for each motor
+    for (const auto & cg : cgs) {
+      print_status(cg, t_now);
+    }
 
     // Write SPEED_REFERENCE (0x700A) for each motor
-    for (uint8_t motor : motors) {
-      float v = static_cast<float>(speed_rad_s);
-      std::array<uint8_t, 4> raw{0, 0, 0, 0};
-      std::memcpy(raw.data(), &v, 4);
+    for (auto & cg : cgs) {
       struct can_frame tx
       {
       };
-      yy_cybergear::data_frame_handler::buildWriteParamReq(
-        host, motor, yy_cybergear::SPEED_REFERENCE, raw, tx);
+      cg.buildSetSpeedReference(static_cast<float>(speed_rad_s), tx);
       rt.post(yy_socket_can::TxRequest{ifname, tx});
       if (verbose) {
         const uint32_t id = tx.can_id & CAN_EFF_MASK;
@@ -223,11 +231,11 @@ int main(int argc, char ** argv)
   }
 
   // Stop motors safely on exit
-  for (uint8_t motor : motors) {
+  for (auto & cg : cgs) {
     struct can_frame tx
     {
     };
-    yy_cybergear::data_frame_handler::buildStopReq(host, motor, tx);
+    cg.buildStop(tx);
     rt.post(yy_socket_can::TxRequest{ifname, tx});
     if (verbose) {
       const uint32_t id = tx.can_id & CAN_EFF_MASK;
