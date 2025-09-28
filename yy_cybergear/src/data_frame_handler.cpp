@@ -36,7 +36,7 @@ void buildGetDeviceIdReq(uint8_t host_id, uint8_t motor_id, struct can_frame & o
   // Use Extended Frame Format (EFF)
   out.can_id = (req_id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   // No payload for device ID request
-  out.can_dlc = 0;
+  out.can_dlc = yy_cybergear::can_dlc::DeviceIdReq;
 }
 
 void buildOpCtrlReq(uint8_t motor_id, const OpCommand & cmd, struct can_frame & out)
@@ -47,7 +47,7 @@ void buildOpCtrlReq(uint8_t motor_id, const OpCommand & cmd, struct can_frame & 
                       static_cast<uint32_t>(motor_id);
   // Extended frame with 8-byte payload
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
-  out.can_dlc = 8;
+  out.can_dlc = yy_cybergear::can_dlc::OpControl;
   // Quantize and pack P, V, Kp, Kd as big-endian uint16 into data[0..7]
   const uint16_t p = yy_cybergear::byte_util::f2u16(cmd.pos_rad, -4.0f * kPi, 4.0f * kPi);
   const uint16_t v = yy_cybergear::byte_util::f2u16(cmd.vel_rad_s, -30.0f, 30.0f);
@@ -65,7 +65,7 @@ void buildStopReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out)
   const uint32_t id = buildEffId(4, host_id, motor_id);
   // Extended frame with 8 zero bytes
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
-  out.can_dlc = 8;
+  out.can_dlc = yy_cybergear::can_dlc::StopOrClear;
   std::memset(out.data, 0, sizeof(out.data));
 }
 
@@ -74,7 +74,7 @@ void buildClearFaultsReq(uint8_t host_id, uint8_t motor_id, struct can_frame & o
   // 4.1.5: Clearing faults is also type 4 with Byte[0] = 1
   const uint32_t id = buildEffId(4, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
-  out.can_dlc = 8;
+  out.can_dlc = yy_cybergear::can_dlc::StopOrClear;
   std::memset(out.data, 0, sizeof(out.data));
   // Set flag to request fault clear
   out.data[0] = 0x01;
@@ -86,7 +86,7 @@ void buildEnableReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out)
   const uint32_t id = buildEffId(3, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   // Extended frame with zeroed payload
-  out.can_dlc = 8;
+  out.can_dlc = yy_cybergear::can_dlc::Enable;
   std::memset(out.data, 0, sizeof(out.data));
 }
 
@@ -98,7 +98,7 @@ void buildChangeMotorIdReq(
                       (static_cast<uint32_t>(new_motor_id) << 16) |
                       (static_cast<uint32_t>(host_id) << 8) | static_cast<uint32_t>(motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
-  out.can_dlc = 8;
+  out.can_dlc = yy_cybergear::can_dlc::ChangeMotorId;
   std::memset(out.data, 0, sizeof(out.data));
   // Apply flag
   out.data[0] = 0x01;
@@ -109,7 +109,7 @@ void buildSetMechanicalZeroReq(uint8_t host_id, uint8_t motor_id, struct can_fra
   // 4.1.6: Setting mechanical zero is type 6; data area cleared with Byte[0] = 1
   const uint32_t id = buildEffId(6, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
-  out.can_dlc = 8;
+  out.can_dlc = yy_cybergear::can_dlc::SetMechanicalZero;
   std::memset(out.data, 0, sizeof(out.data));
   // Commit zeroing
   out.data[0] = 0x01;
@@ -120,7 +120,7 @@ void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct
   // Type 22: set CAN baud rate, code in data[0]
   const uint32_t id = buildEffId(22, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
-  out.can_dlc = 8;
+  out.can_dlc = yy_cybergear::can_dlc::SetBaudRateReq;
   std::memset(out.data, 0, sizeof(out.data));
   out.data[0] = code;
 }
@@ -130,7 +130,7 @@ void buildReadParamReq(uint8_t host_id, uint8_t motor_id, uint16_t index, struct
   // Type 17: read parameter (little-endian 16-bit index in payload)
   const uint32_t id = buildEffId(17, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
-  out.can_dlc = 8;
+  out.can_dlc = yy_cybergear::can_dlc::ReadParamReq;
   std::memset(out.data, 0, sizeof(out.data));
   // Protocol uses little-endian for parameter index in payload
   yy_cybergear::byte_util::packLE16(&out.data[0], index);
@@ -143,7 +143,7 @@ void buildWriteParamReq(
   // Type 18: write parameter (LE 16-bit index + 4 bytes data)
   const uint32_t id = buildEffId(18, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
-  out.can_dlc = 8;
+  out.can_dlc = yy_cybergear::can_dlc::WriteParamReq;
   std::memset(out.data, 0, sizeof(out.data));
   // Protocol uses little-endian for parameter index in payload
   yy_cybergear::byte_util::packLE16(&out.data[0], index);
@@ -191,7 +191,7 @@ DataFrameType getFrameType(const struct can_frame & in) noexcept
 
 bool parseDeviceIdResp(
   const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
-  std::array<uint8_t, kUidLen> & out_uid, bool type_check)
+  std::array<uint8_t, yy_cybergear::can_dlc::DeviceIdResp> & out_uid, bool type_check)
 {
   if (type_check) {
     // Check Extended Frame Format (EFF)
@@ -217,10 +217,10 @@ bool parseDeviceIdResp(
   if ((eid & 0xFFu) != 0xFEu) return false;
 
   // UID length must match
-  if (in.can_dlc != kUidLen) return false;
+  if (in.can_dlc != yy_cybergear::can_dlc::DeviceIdResp) return false;
 
   // Copy UID bytes
-  std::copy_n(&in.data[0], kUidLen, out_uid.begin());
+  std::copy_n(&in.data[0], yy_cybergear::can_dlc::DeviceIdResp, out_uid.begin());
 
   return true;
 }
@@ -250,7 +250,7 @@ bool parseFaultWarningResp(
   if (mid != expect_motor_id) return false;
 
   // Expect 8-byte payload
-  if (in.can_dlc != 8) return false;
+  if (in.can_dlc != yy_cybergear::can_dlc::FaultWarningResp) return false;
 
   // Parse LE32 fault and warning bitfields
   out.faults = yy_cybergear::byte_util::readLE32(&in.data[0]);
@@ -284,7 +284,7 @@ bool parseReadParamResp(
   if (mid != expect_motor_id) return false;
 
   // Expect 8-byte payload
-  if (in.can_dlc != 8) return false;
+  if (in.can_dlc != yy_cybergear::can_dlc::ReadParamResp) return false;
 
   // Read LE16 index and copy 4 bytes of data
   const uint16_t idx = yy_cybergear::byte_util::readLE16(&in.data[0]);
@@ -319,7 +319,7 @@ bool parseStatus(
   if (mid != expect_motor_id) return false;
 
   // Expect 8-byte payload
-  if (in.can_dlc != 8) return false;
+  if (in.can_dlc != yy_cybergear::can_dlc::Status) return false;
 
   // Parse motor status encoded in EFF-ID bits
   out.motor_can_id = mid;

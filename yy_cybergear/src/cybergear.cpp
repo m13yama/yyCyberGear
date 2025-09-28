@@ -169,7 +169,7 @@ void CyberGear::buildSetSpeedKi(float v, struct can_frame & out) const noexcept
 
 bool CyberGear::updateFromDeviceIdResp(const struct can_frame & in, bool type_check) noexcept
 {
-  std::array<uint8_t, kUidLen> uid{};
+  std::array<uint8_t, yy_cybergear::can_dlc::DeviceIdResp> uid{};
   if (!data_frame_handler::parseDeviceIdResp(in, host_id_, motor_id_, uid, type_check)) {
     return false;
   }

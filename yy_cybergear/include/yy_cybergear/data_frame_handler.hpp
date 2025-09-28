@@ -30,7 +30,6 @@ namespace data_frame_handler
 using OpCommand = yy_cybergear::OpCommand;
 using Status = yy_cybergear::Status;
 using FaultWarning = yy_cybergear::FaultWarning;
-constexpr int kUidLen = yy_cybergear::kUidLen;
 
 // ======== Frame type classification ========
 enum class DataFrameType : uint8_t {
@@ -66,7 +65,7 @@ void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct
 // ========= Parsers =========
 bool parseDeviceIdResp(
   const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
-  std::array<uint8_t, kUidLen> & out_uid, bool type_check = true);
+  std::array<uint8_t, yy_cybergear::can_dlc::DeviceIdResp> & out_uid, bool type_check = true);
 bool parseStatus(
   const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, Status & out,
   bool type_check = true);

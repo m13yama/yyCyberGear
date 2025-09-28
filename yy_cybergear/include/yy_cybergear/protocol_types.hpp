@@ -22,8 +22,23 @@
 namespace yy_cybergear
 {
 
-// ======== Constants ========
-constexpr int kUidLen = 8;
+// ======== CAN DLC (data length) constants ========
+namespace can_dlc
+{
+constexpr uint8_t DeviceIdReq = 0;
+constexpr uint8_t DeviceIdResp = 8;
+constexpr uint8_t OpControl = 8;
+constexpr uint8_t Status = 8;
+constexpr uint8_t Enable = 8;
+constexpr uint8_t StopOrClear = 8;
+constexpr uint8_t SetMechanicalZero = 8;
+constexpr uint8_t ChangeMotorId = 8;
+constexpr uint8_t ReadParamReq = 8;
+constexpr uint8_t ReadParamResp = 8;
+constexpr uint8_t WriteParamReq = 8;
+constexpr uint8_t FaultWarningResp = 8;
+constexpr uint8_t SetBaudRateReq = 8;
+}  // namespace can_dlc
 
 // ======== Parameter indices ========
 constexpr uint16_t RUN_MODE = 0x7005;

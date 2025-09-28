@@ -276,7 +276,8 @@ void MainWindow::updateStatusFrom(const yy_cybergear::Status & st)
   m_currentLabel->setText(QString::number(st.torque_Nm, 'f', kDispDecimalsTorque));
   m_temperatureLabel->setText(QString::number(st.temperature_c, 'f', kDispDecimalsTemperature));
   m_motorIdLabel->setText(QString::number(st.motor_can_id));
-  m_modeLabel->setText(QString::fromStdString(yy_cybergear::mode_to_string(st.mode)));
+  m_modeLabel->setText(
+    QString::fromStdString(yy_cybergear::status_mode_to_string(st.status_mode)));
   const auto faults = yy_cybergear::fault_bits_to_string(st.fault_bits);
   if (faults.empty()) {
     m_faultsLabel->setText("None");

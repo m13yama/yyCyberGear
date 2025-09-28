@@ -333,7 +333,7 @@ public:
   uint32_t warning_bits_agg() const noexcept { return warnings_bits(); }
 
   // ===== UID getter =====
-  std::array<uint8_t, kUidLen> uid() const noexcept
+  std::array<uint8_t, yy_cybergear::can_dlc::DeviceIdResp> uid() const noexcept
   {
     std::lock_guard<std::mutex> lk(mu_);
     return uid_;
@@ -484,7 +484,7 @@ private:
   uint32_t warning_bits_agg_{0};
 
   // UID
-  std::array<uint8_t, kUidLen> uid_{};
+  std::array<uint8_t, yy_cybergear::can_dlc::DeviceIdResp> uid_{};
   bool uid_initialized_{false};
 
   // Parameter mirrors
