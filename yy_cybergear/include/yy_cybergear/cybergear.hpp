@@ -137,7 +137,6 @@ public:
   void buildSetMechanicalZero(struct can_frame & out) const;
   void buildChangeMotorId(uint8_t new_motor_id, struct can_frame & out) const;
   void buildOpControl(const OpCommand & cmd, struct can_frame & out) const;
-  void buildFaultWarning(struct can_frame & out) const;  // request snapshot
   void buildSetBaudRate(uint8_t code, struct can_frame & out) const;
 
   // ===== Generic parameter get/set =====
