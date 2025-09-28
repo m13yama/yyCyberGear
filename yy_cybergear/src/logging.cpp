@@ -27,19 +27,20 @@ std::string formatStatusLine(const CyberGear & cg, double t_sec)
 {
   const auto s = cg.getStatus();
   const auto status_str = statusModeToString(s.status_mode);
-  const auto run_str = runModeToString(cg.run_mode());
   std::ostringstream oss;
   oss.setf(std::ios::fixed, std::ios::floatfield);
+  // clang-format off
   oss << std::setprecision(3) << " t=" << t_sec << "s"
       << " ang=" << s.angle_rad << "rad"
       << " vel=" << s.vel_rad_s << "rad/s"
       << " tau=" << s.torque_Nm << "Nm"
       << " T=" << s.temperature_c << "C"
-      << " status=" << status_str << " run=" << run_str << " faults=0x" << std::uppercase
-      << std::hex << std::setw(2) << std::setfill('0')
-      << static_cast<unsigned>(s.fault_bits & 0xFFu) << std::dec << " mid=0x" << std::uppercase
-      << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(s.motor_can_id)
-      << std::dec;
+      << " status=" << status_str
+      << " faults=0x" << std::uppercase << std::hex << std::setw(2)
+      << std::setfill('0') << static_cast<unsigned>(s.fault_bits & 0xFFu) << std::dec
+      << " mid=0x" << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+      << static_cast<unsigned>(s.motor_can_id) << std::dec;
+  // clang-format on
   return oss.str();
 }
 
@@ -47,6 +48,7 @@ std::string formatParamsSummary(const CyberGear & cg)
 {
   std::ostringstream oss;
   const auto uid = cg.uid();
+  const auto run_str = runModeToString(cg.run_mode());
   oss.setf(std::ios::fixed, std::ios::floatfield);
   oss << std::setprecision(3);
   oss << "  motor_id=0x" << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
@@ -59,7 +61,7 @@ std::string formatParamsSummary(const CyberGear & cg)
     oss << ":" << std::setw(2) << std::setfill('0') << static_cast<unsigned>(uid[i]);
   }
   oss << std::dec << "\n";
-
+  oss << "    run_mode         = " << run_str << "\n";
   oss << "    speed_limit      = " << cg.speed_limit() << " rad/s\n"
       << "    current_limit    = " << cg.current_limit() << " A\n"
       << "    torque_limit     = " << cg.torque_limit() << " Nm\n"
