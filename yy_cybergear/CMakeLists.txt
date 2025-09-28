@@ -18,20 +18,15 @@ ament_auto_add_library(${TARGET} SHARED
 )
 unset(TARGET)
 
-# exmp_00_can_runtime_minimal ============================
-set(TARGET exmp_00_can_runtime_minimal)
-ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-unset(TARGET)
-
 # # exmp_01_get_mcu_id ============================
 # set(TARGET exmp_01_get_mcu_id)
 # ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 # unset(TARGET)
 
-# # exmp_02_monitor_status ============================
-# set(TARGET exmp_02_monitor_status)
-# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-# unset(TARGET)
+# exmp_02_monitor_status ============================
+set(TARGET exmp_02_monitor_status)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
 
 # # exmp_03_operation_sin_wave ============================
 # set(TARGET exmp_03_operation_sin_wave)
@@ -43,20 +38,15 @@ unset(TARGET)
 # ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 # unset(TARGET)
 
-# # exmp_05_speed_constant ============================
-# set(TARGET exmp_05_speed_constant)
-# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-# unset(TARGET)
+# exmp_05_speed_constant ============================
+set(TARGET exmp_05_speed_constant)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
 
 # # exmp_06_current_constant ============================
 # set(TARGET exmp_06_current_constant)
 # ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 # unset(TARGET)
-
-# exmp_07_speed_constant (CanRuntime-based) ============================
-set(TARGET exmp_07_speed_constant)
-ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-unset(TARGET)
 
 # if(BUILD_TESTING)
 #   find_package(ament_lint_auto REQUIRED)
