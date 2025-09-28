@@ -39,10 +39,10 @@ set(TARGET exmp_04_speed_constant)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
-# # exmp_06_current_constant ============================
-# set(TARGET exmp_06_current_constant)
-# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-# unset(TARGET)
+# exmp_05_current_constant ============================
+set(TARGET exmp_05_current_constant)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
 
 # if(BUILD_TESTING)
 #   find_package(ament_lint_auto REQUIRED)
