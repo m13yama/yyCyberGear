@@ -20,7 +20,7 @@
 namespace yy_socket_can
 {
 
-void CanDispatcher::register_handler(uint32_t id_begin, uint32_t id_end, Handler cb)
+void CanDispatcher::registerHandler(uint32_t id_begin, uint32_t id_end, Handler cb)
 {
   if (!cb) return;
   if (id_end < id_begin) std::swap(id_begin, id_end);
@@ -59,7 +59,7 @@ bool CanDispatcher::dispatch(const struct can_frame & frame) const
   return false;
 }
 
-void CanDispatcher::set_warning_logger(std::function<void(const std::string &)> logger)
+void CanDispatcher::setWarningLogger(std::function<void(const std::string &)> logger)
 {
   std::lock_guard<std::mutex> lk(m_);
   warn_ = std::move(logger);

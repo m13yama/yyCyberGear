@@ -34,7 +34,7 @@ public:
   using Handler = std::function<void(const struct can_frame &)>;
 
   // Register handler for inclusive range [id_begin, id_end]
-  void register_handler(uint32_t id_begin, uint32_t id_end, Handler cb);
+  void registerHandler(uint32_t id_begin, uint32_t id_end, Handler cb);
 
   // Remove all handlers
   void clear();
@@ -43,7 +43,7 @@ public:
   bool dispatch(const struct can_frame & frame) const;
 
   // Optional logging hook
-  void set_warning_logger(std::function<void(const std::string &)> logger);
+  void setWarningLogger(std::function<void(const std::string &)> logger);
 
 private:
   struct Entry

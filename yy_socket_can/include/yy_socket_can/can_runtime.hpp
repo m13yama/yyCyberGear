@@ -58,7 +58,7 @@ public:
   CanRuntime & operator=(const CanRuntime &) = delete;
 
   // Add/open a CAN channel (interface). Safe to call before or after start().
-  void add_channel(
+  void addChannel(
     const std::string & ifname, bool non_blocking = true, int rcvbuf_bytes = -1,
     int sndbuf_bytes = -1);
 
@@ -72,17 +72,17 @@ public:
   void post(const TxRequest & req);
 
   // Query runtime state; returns false once stop has been requested
-  bool is_running() const noexcept { return running_.load(); }
+  bool isRunning() const noexcept { return running_.load(); }
 
   // Register RX handler via dispatcher
-  void register_handler(uint32_t id_begin, uint32_t id_end, CanDispatcher::Handler cb)
+  void registerHandler(uint32_t id_begin, uint32_t id_end, CanDispatcher::Handler cb)
   {
-    dispatcher_.register_handler(id_begin, id_end, std::move(cb));
+    dispatcher_.registerHandler(id_begin, id_end, std::move(cb));
   }
 
-  void set_warning_logger(std::function<void(const std::string &)> logger)
+  void setWarningLogger(std::function<void(const std::string &)> logger)
   {
-    dispatcher_.set_warning_logger(std::move(logger));
+    dispatcher_.setWarningLogger(std::move(logger));
   }
 
 private:
@@ -108,8 +108,8 @@ private:
   std::map<std::string, std::unique_ptr<Channel>> channels_;
 
   // workers
-  void tx_worker();
-  void rx_worker(Channel * ch);
+  void txWorker();
+  void rxWorker(Channel * ch);
 
   // Emergency stop: immediately stop runtime and close sockets (no graceful drain).
   // Safe to call from any thread. Intended for internal error paths.

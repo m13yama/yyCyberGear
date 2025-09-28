@@ -43,7 +43,7 @@ public:
   }
 
   // Returns false if closed and no item retrieved
-  bool try_pop(T & out)
+  bool tryPop(T & out)
   {
     std::lock_guard<std::mutex> lk(m_);
     if (q_.empty()) return false;
@@ -53,7 +53,7 @@ public:
   }
 
   // Blocks until an item is available or queue is closed. Returns false on closed without item.
-  bool wait_and_pop(T & out)
+  bool waitAndPop(T & out)
   {
     std::unique_lock<std::mutex> lk(m_);
     cv_.wait(lk, [&] { return closed_ || !q_.empty(); });

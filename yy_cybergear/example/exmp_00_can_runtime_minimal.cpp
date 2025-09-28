@@ -103,8 +103,8 @@ int main(int argc, char ** argv)
 
   // Runtime and handler registration
   yy_socket_can::CanRuntime rt;
-  rt.set_warning_logger([](const std::string & m) { std::cerr << m << std::endl; });
-  rt.add_channel(ifname);
+  rt.setWarningLogger([](const std::string & m) { std::cerr << m << std::endl; });
+  rt.addChannel(ifname);
 
   // Register a handler for all type-2 frames of the specified motor id.
   // ID layout (type-2):
@@ -124,7 +124,7 @@ int main(int argc, char ** argv)
   using clock = std::chrono::steady_clock;
   const auto t0 = clock::now();
 
-  rt.register_handler(min_id, max_id, [verbose, t0](const struct can_frame & f) {
+  rt.registerHandler(min_id, max_id, [verbose, t0](const struct can_frame & f) {
     Status st{};
     if (!parseStatus(f, st)) return;  // Shouldn't happen due to range filter
     const double t = std::chrono::duration<double>(clock::now() - t0).count();

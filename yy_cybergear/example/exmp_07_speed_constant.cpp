@@ -135,8 +135,8 @@ int main(int argc, char ** argv)
 
   // Setup CanRuntime
   yy_socket_can::CanRuntime rt;
-  rt.set_warning_logger([](const std::string & m) { std::cerr << m << std::endl; });
-  rt.add_channel(ifname);
+  rt.setWarningLogger([](const std::string & m) { std::cerr << m << std::endl; });
+  rt.addChannel(ifname);
 
   using yy_cybergear::Status;
   using yy_cybergear::data_frame_handler::parseStatus;
@@ -148,7 +148,7 @@ int main(int argc, char ** argv)
     const uint32_t min_id = (2u << 24) | (static_cast<uint32_t>(motor) << 8);
     const uint32_t max_id =
       (2u << 24) | (3u << 22) | (0x3Fu << 16) | (static_cast<uint32_t>(motor) << 8) | 0xFFu;
-    rt.register_handler(min_id, max_id, [verbose, t0](const struct can_frame & f) {
+    rt.registerHandler(min_id, max_id, [verbose, t0](const struct can_frame & f) {
       Status st{};
       if (!parseStatus(f, st)) return;
       const double t = std::chrono::duration<double>(clock::now() - t0).count();
@@ -195,7 +195,7 @@ int main(int argc, char ** argv)
 
   // Control loop: set RunMode=Speed and speed reference
   const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
-  while (g_running && rt.is_running()) {
+  while (g_running && rt.isRunning()) {
     const auto start = clock::now();
     const auto deadline = start + dt_ns;
 

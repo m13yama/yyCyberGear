@@ -28,7 +28,7 @@ CanRuntime::CanRuntime(bool enable_can_fd)
 
 CanRuntime::~CanRuntime() { stop(); }
 
-void CanRuntime::add_channel(
+void CanRuntime::addChannel(
   const std::string & ifname, bool non_blocking, int rcvbuf_bytes, int sndbuf_bytes)
 {
   std::unique_ptr<Channel> ch;
@@ -61,12 +61,12 @@ void CanRuntime::start()
         }
       }
       ch->running.store(true);
-      ch->rx_thread = std::thread([this, ch_ptr = ch.get()]() { rx_worker(ch_ptr); });
+      ch->rx_thread = std::thread([this, ch_ptr = ch.get()]() { rxWorker(ch_ptr); });
     }
   }
 
   // TX thread
-  tx_thread_ = std::thread([this]() { tx_worker(); });
+  tx_thread_ = std::thread([this]() { txWorker(); });
 }
 
 void CanRuntime::stop()
@@ -123,11 +123,11 @@ void CanRuntime::abort()
   }
 }
 
-void CanRuntime::tx_worker()
+void CanRuntime::txWorker()
 {
   TxRequest req;
   while (running_.load()) {
-    if (!tx_queue_.wait_and_pop(req)) break;  // queue closed
+    if (!tx_queue_.waitAndPop(req)) break;  // queue closed
 
     // Find channel
     Channel * ch = nullptr;
@@ -160,7 +160,7 @@ void CanRuntime::tx_worker()
   }
 }
 
-void CanRuntime::rx_worker(Channel * ch)
+void CanRuntime::rxWorker(Channel * ch)
 {
   struct can_frame frame
   {
