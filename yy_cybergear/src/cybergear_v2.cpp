@@ -57,11 +57,6 @@ void CyberGearV2::buildOpControl(const OpCommand & cmd, struct can_frame & out) 
   data_frame_handler::buildOpCtrlReq(motor_id_, cmd, out);
 }
 
-void CyberGearV2::buildFaultWarning(struct can_frame & out) const
-{
-  data_frame_handler::buildFaultWarningReq(host_id_, motor_id_, out);
-}
-
 void CyberGearV2::buildSetBaudRate(uint8_t code, struct can_frame & out) const
 {
   data_frame_handler::buildSetBaudRateReq(host_id_, motor_id_, code, out);

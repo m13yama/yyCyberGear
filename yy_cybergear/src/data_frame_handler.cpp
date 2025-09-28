@@ -162,16 +162,6 @@ void buildSetMechanicalZeroReq(uint8_t host_id, uint8_t motor_id, struct can_fra
   out.data[0] = 0x01;
 }
 
-void buildFaultWarningReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out)
-{
-  // Type 21: query fault/warning bitfields
-  const uint32_t id = buildEffId(21, host_id, motor_id);
-  out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
-  // No payload required by request
-  out.can_dlc = 8;
-  std::memset(out.data, 0, sizeof(out.data));
-}
-
 void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct can_frame & out)
 {
   // Type 22: set CAN baud rate, code in data[0]

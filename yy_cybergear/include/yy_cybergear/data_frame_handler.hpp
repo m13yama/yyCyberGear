@@ -60,8 +60,6 @@ void buildWriteParamReq(
   struct can_frame & out);
 // Type 22: Set baud rate request
 void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct can_frame & out);
-// Type 21: Fault & warning snapshot request
-void buildFaultWarningReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
 
 // ========= Parsers =========
 // MCU UID response: bits 28..24 == 0, low 8 bits == 0xFE, middle bytes contain motor id
