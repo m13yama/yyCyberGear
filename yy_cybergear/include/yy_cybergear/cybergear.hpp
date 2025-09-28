@@ -20,6 +20,8 @@
 #include <array>
 #include <cstdint>
 #include <mutex>
+#include <unordered_set>
+#include <vector>
 
 #include "yy_cybergear/protocol_types.hpp"
 
@@ -308,6 +310,11 @@ public:
     std::lock_guard<std::mutex> lk(mu_);
     return uid_;
   }
+  bool isUidInitialized() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return uid_initialized_;
+  }
 
   // ===== Parameter getters (mirror) =====
   uint32_t run_mode() const
@@ -401,6 +408,30 @@ public:
     return speed_ki_;
   }
 
+  // ===== Initialization flags helpers =====
+  // True after the first status frame has been applied
+  bool isStatusInitialized() const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return status_initialized_;
+  }
+  // True if a given parameter index has been received at least once via ReadParam response
+  bool isParamInitialized(uint16_t index) const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    return initialized_params_.find(index) != initialized_params_.end();
+  }
+  // Convenience: check a list of indices; optionally require UID as well
+  bool isInitializedFor(const std::vector<uint16_t> & indices, bool require_uid = true) const
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    if (require_uid && !uid_initialized_) return false;
+    for (uint16_t idx : indices) {
+      if (initialized_params_.find(idx) == initialized_params_.end()) return false;
+    }
+    return true;
+  }
+
 private:
   // Synchronization for concurrent readers/writers (RX thread vs user thread)
   mutable std::mutex mu_;
@@ -425,6 +456,7 @@ private:
 
   // UID
   std::array<uint8_t, kUidLen> uid_{};
+  bool uid_initialized_{false};
 
   // Parameter mirrors
   uint32_t run_mode_{0};
@@ -445,6 +477,10 @@ private:
   float position_kp_{0.0f};
   float speed_kp_{0.0f};
   float speed_ki_{0.0f};
+
+  // Initialization bookkeeping
+  bool status_initialized_{false};
+  std::unordered_set<uint16_t> initialized_params_{};  // indices seen in ReadParam responses
 
   // Local helpers
   static constexpr float kPi_ = 3.14159265358979323846f;

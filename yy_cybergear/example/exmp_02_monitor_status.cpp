@@ -25,9 +25,11 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "yy_cybergear/cybergear.hpp"
+#include "yy_cybergear/data_frame_handler.hpp"
 #include "yy_socket_can/can_runtime.hpp"
 
 namespace
@@ -47,6 +49,31 @@ void print_status(const yy_cybergear::CyberGear & cg, double t_sec)
             << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned>(s.fault_bits)
             << std::dec << " mid=0x" << std::uppercase << std::hex << std::setw(2)
             << std::setfill('0') << static_cast<unsigned>(s.motor_can_id) << std::dec << '\n';
+}
+
+void print_params(const yy_cybergear::CyberGear & cg)
+{
+  // Print a concise parameter summary (limits and gains)
+  const auto uid = cg.uid();
+  std::cout << std::fixed << std::setprecision(3) << "  motor_id=0x" << std::uppercase << std::hex
+            << std::setw(2) << std::setfill('0') << static_cast<unsigned>(cg.motor_id())
+            << std::dec << "\n"
+            << "    uid               = 0x" << std::uppercase << std::hex << std::setw(2)
+            << std::setfill('0') << static_cast<unsigned>(uid[0]) << std::setw(2)
+            << static_cast<unsigned>(uid[1]) << std::setw(2) << static_cast<unsigned>(uid[2])
+            << std::setw(2) << static_cast<unsigned>(uid[3]) << std::setw(2)
+            << static_cast<unsigned>(uid[4]) << std::setw(2) << static_cast<unsigned>(uid[5])
+            << std::setw(2) << static_cast<unsigned>(uid[6]) << std::setw(2)
+            << static_cast<unsigned>(uid[7]) << std::dec << "\n"
+            << "    speed_limit      = " << cg.speed_limit() << " rad/s\n"
+            << "    current_limit    = " << cg.current_limit() << " A\n"
+            << "    torque_limit     = " << cg.torque_limit() << " Nm\n"
+            << "    current_kp       = " << cg.current_kp() << "\n"
+            << "    current_ki       = " << cg.current_ki() << "\n"
+            << "    current_filter   = " << cg.current_filter_gain() << "\n"
+            << "    position_kp      = " << cg.position_kp() << "\n"
+            << "    speed_kp         = " << cg.speed_kp() << "\n"
+            << "    speed_ki         = " << cg.speed_ki() << "\n";
 }
 }  // namespace
 
@@ -137,25 +164,28 @@ int main(int argc, char ** argv)
   using clock = std::chrono::steady_clock;
   const auto t0 = clock::now();
 
+  // Track preflight indices (only for issuing requests; readiness is tracked inside CyberGear)
+  const std::vector<uint16_t> preflight_params = {
+    yy_cybergear::RUN_MODE,
+    yy_cybergear::SPEED_LIMIT,
+    yy_cybergear::CURRENT_LIMIT,
+    yy_cybergear::TORQUE_LIMIT,
+    yy_cybergear::CURRENT_KP,
+    yy_cybergear::CURRENT_KI,
+    yy_cybergear::CURRENT_FILTER_GAIN,
+    yy_cybergear::POSITION_KP,
+    yy_cybergear::SPEED_KP,
+    yy_cybergear::SPEED_KI,
+  };
+
   rt.registerHandler(min_id, max_id, [verbose, &cgs](const struct can_frame & f) {
-    bool any = false;
-    for (auto & cg : cgs) {
-      const auto kind = cg.dispatchAndUpdate(f);
-      if (
-        kind == yy_cybergear::CyberGear::UpdateKind::Ignored ||
-        kind == yy_cybergear::CyberGear::UpdateKind::None) {
-        continue;
-      }
-      any = true;
-      if (verbose) {
-        const uint32_t id = f.can_id & CAN_EFF_MASK;
-        std::cout << "RX 0x" << std::hex << std::uppercase << id << std::dec
-                  << " dlc=" << int(f.can_dlc) << "\n";
-      }
-      // Note: status printing is performed on the main thread in the loop.
-      // We don't break here because multiple CGs could theoretically match (shouldn't happen).
+    // Dispatch updates into CG mirrors (will set initialized flags internally)
+    for (auto & cg : cgs) (void)cg.dispatchAndUpdate(f);
+    if (verbose) {
+      const uint32_t id = f.can_id & CAN_EFF_MASK;
+      std::cout << "RX 0x" << std::hex << std::uppercase << id << std::dec
+                << " dlc=" << int(f.can_dlc) << "\n";
     }
-    (void)any;
   });
 
   // Start runtime and wait
@@ -169,6 +199,67 @@ int main(int argc, char ** argv)
   }
   std::cout << std::dec << "] on " << ifname << ", poll ClearFaults at " << rate_hz
             << " Hz. Press Ctrl+C to stop..." << '\n';
+
+  // Preflight: request parameters and UID, then wait (without starting the main loop)
+  for (std::size_t i = 0; i < cgs.size(); ++i) {
+    for (uint16_t idx : preflight_params) {
+      struct can_frame tx
+      {
+      };
+      cgs[i].buildReadParam(idx, tx);
+      rt.post(yy_socket_can::TxRequest{ifname, tx});
+      if (verbose) {
+        const uint32_t id = tx.can_id & CAN_EFF_MASK;
+        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (ReadParam 0x"
+                  << std::hex << std::uppercase << idx << std::dec << ")\n";
+      }
+    }
+    // Request MCU UID (device ID)
+    {
+      struct can_frame tx
+      {
+      };
+      cgs[i].buildGetDeviceId(tx);
+      rt.post(yy_socket_can::TxRequest{ifname, tx});
+      if (verbose) {
+        const uint32_t id = tx.can_id & CAN_EFF_MASK;
+        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (GetDeviceId)\n";
+      }
+    }
+  }
+
+  bool all_ready = false;
+  while (g_running && !all_ready) {
+    // Check completion using CyberGear's initialized flags
+    all_ready = true;
+    for (const auto & cg : cgs) {
+      if (!cg.isInitializedFor(preflight_params, /*require_uid=*/true)) {
+        all_ready = false;
+        break;
+      }
+    }
+    if (all_ready) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+
+  // Print collected parameters per motor
+  std::cout << "\nCollected parameters (including UID, excluding Status):\n";
+  for (const auto & cg : cgs) {
+    print_params(cg);
+  }
+  std::cout << "\nPress Enter to start monitoring (Ctrl+C to exit) ..." << std::endl;
+  while (g_running) {
+    if (std::cin.rdbuf()->in_avail() > 0) {
+      int c = std::cin.get();
+      if (c == '\n' || c == '\r') break;  // start on Enter
+    } else {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+  }
+  if (!g_running) {
+    rt.stop();
+    return EXIT_SUCCESS;
+  }
 
   // Periodically post ClearFaults requests similar to exmp_02
   const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};

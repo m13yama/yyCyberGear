@@ -175,6 +175,7 @@ bool CyberGear::updateFromDeviceIdResp(const struct can_frame & in, bool type_ch
   {
     std::lock_guard<std::mutex> lk(mu_);
     uid_ = uid;
+    uid_initialized_ = true;
   }
   return true;
 }
@@ -195,6 +196,7 @@ bool CyberGear::updateFromStatusFrame(const struct can_frame & in, bool type_che
     mode_ = s.mode;
     fault_bits_ = s.fault_bits;
     raw_eff_id_ = s.raw_eff_id;
+    status_initialized_ = true;
   }
   return true;
 }
@@ -210,6 +212,7 @@ bool CyberGear::updateFromReadParamResp(const struct can_frame & in, bool type_c
 
   // Interpret based on known parameter index
   std::lock_guard<std::mutex> lk(mu_);
+  initialized_params_.insert(index);
   switch (index) {
     case RUN_MODE:
       run_mode_ = u32;
