@@ -20,6 +20,7 @@
 #include <linux/can.h>
 
 #include <CLI/CLI.hpp>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <csignal>
