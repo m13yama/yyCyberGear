@@ -71,24 +71,43 @@ void CanRuntime::start()
 
 void CanRuntime::stop()
 {
+  // Make stop idempotent and safe to call from any context.
   if (!running_.load()) return;
-  running_.store(false);
-  tx_queue_.close();
+  signal_stop();
 
-  if (tx_thread_.joinable()) tx_thread_.join();
+  // Join TX thread unless we're calling from it
+  if (tx_thread_.joinable() && std::this_thread::get_id() != tx_thread_.get_id()) {
+    tx_thread_.join();
+  }
 
-  // Stop RX threads and close sockets
+  // Join RX threads (sockets already closed in signal_stop)
   std::lock_guard<std::mutex> lk(m_);
   for (auto & kv : channels_) {
     auto & ch = kv.second;
-    ch->running.store(false);
-    // Low-latency shutdown: close socket first to unblock any blocking read(), then join.
-    ch->sock.close();
     if (ch->rx_thread.joinable()) ch->rx_thread.join();
   }
 }
 
 void CanRuntime::post(const TxRequest & req) { tx_queue_.push(req); }
+
+void CanRuntime::signal_stop()
+{
+  bool expected = true;
+  if (!running_.compare_exchange_strong(expected, false)) {
+    // already stopping/stopped
+    return;
+  }
+  // Close TX queue to unblock tx_worker
+  tx_queue_.close();
+
+  // Stop RX loops and close sockets to unblock potential blocking recv()
+  std::lock_guard<std::mutex> lk(m_);
+  for (auto & kv : channels_) {
+    auto & ch = kv.second;
+    ch->running.store(false);
+    ch->sock.close();
+  }
+}
 
 void CanRuntime::tx_worker()
 {
@@ -116,7 +135,9 @@ void CanRuntime::tx_worker()
       std::this_thread::sleep_for(std::chrono::microseconds(CanRuntime::kTxInterFrameDelayUs));
     } catch (const std::exception & e) {
       std::cerr << "[CanRuntime] TX error on " << req.channel << ": " << e.what() << std::endl;
-      // Optional: implement retry/backoff
+      // Stop the runtime immediately on send error as requested
+      signal_stop();
+      break;
     }
   }
 }
@@ -135,12 +156,9 @@ void CanRuntime::rx_worker(Channel * ch)
     } catch (const std::exception & e) {
       std::cerr << "[CanRuntime] RX error on " << ch->sock.ifname() << ": " << e.what()
                 << std::endl;
-      // Simple recovery: short sleep then continue; in real impl, try reopen etc.
-      // If stopping, exit immediately without extra delay to reduce shutdown latency.
-      if (!running_.load() || !ch->running.load()) {
-        break;
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      // Stop the runtime immediately on RX error as requested
+      signal_stop();
+      break;
     }
   }
 }

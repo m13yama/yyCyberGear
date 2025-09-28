@@ -106,6 +106,9 @@ private:
   // workers
   void tx_worker();
   void rx_worker(Channel * ch);
+
+  // Request stop without joining threads. Safe to call from any thread.
+  void signal_stop();
 };
 
 }  // namespace yy_socket_can
