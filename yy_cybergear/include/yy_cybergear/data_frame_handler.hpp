@@ -26,9 +26,21 @@ namespace yy_cybergear
 {
 namespace data_frame_handler
 {
-
-// Pure helper API to build and parse CyberGear CAN frames.
-// Implemented as free functions in a namespace (no classes), suitable for unit testing.
+// ======== Frame type classification ========
+enum class DataFrameType : uint8_t {
+  Unknown = 0xFF,
+  Type0_DeviceId = 0,
+  Type1_OpControl = 1,
+  Type2_Status = 2,
+  Type3_Enable = 3,
+  Type4_StopOrClear = 4,
+  Type6_SetMechanicalZero = 6,
+  Type7_ChangeMotorId = 7,
+  Type17_ReadParam = 17,
+  Type18_WriteParam = 18,
+  Type21_FaultWarning = 21,
+  Type22_SetBaudRate = 22,
+};
 
 // Expose common types from root namespace for backward compatibility
 using OpCommand = yy_cybergear::OpCommand;
@@ -37,28 +49,18 @@ using FaultWarning = yy_cybergear::FaultWarning;
 constexpr int kUidLen = yy_cybergear::kUidLen;
 
 // ========= Builders =========
-// Type 0: Get device ID request
 void buildGetDeviceIdReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 1: Operation control request
 void buildOpCtrlReq(uint8_t motor_id, const OpCommand & cmd, struct can_frame & out);
-// Type 3: Enable motor request
 void buildEnableReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 4: Stop motor request (data cleared)
 void buildStopReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 4: Clear faults request (Byte[0]=1)
 void buildClearFaultsReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 7: Change motor CAN_ID request
 void buildChangeMotorIdReq(
   uint8_t host_id, uint8_t motor_id, uint8_t new_motor_id, struct can_frame & out);
-// Type 6: Set mechanical zero (Byte[0]=1)
 void buildSetMechanicalZeroReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
-// Type 17: Read parameter request
 void buildReadParamReq(uint8_t host_id, uint8_t motor_id, uint16_t index, struct can_frame & out);
-// Type 18: Write parameter request
 void buildWriteParamReq(
   uint8_t host_id, uint8_t motor_id, uint16_t index, const std::array<uint8_t, 4> & data,
   struct can_frame & out);
-// Type 22: Set baud rate request
 void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct can_frame & out);
 
 // ========= Parsers =========
@@ -84,24 +86,6 @@ constexpr uint32_t buildEffId(uint8_t type, uint8_t host_id, uint8_t motor_id) n
 
 constexpr bool isExtended(uint32_t can_id) noexcept { return (can_id & CAN_EFF_FLAG) != 0; }
 
-// ======== Frame type classification ========
-enum class DataFrameType : uint8_t {
-  Unknown = 0xFF,
-  Type0_DeviceId = 0,
-  Type1_OpControl = 1,
-  Type2_Status = 2,
-  Type3_Enable = 3,
-  Type4_StopOrClear = 4,
-  Type6_SetMechanicalZero = 6,
-  Type7_ChangeMotorId = 7,
-  Type17_ReadParam = 17,
-  Type18_WriteParam = 18,
-  Type21_FaultWarning = 21,
-  Type22_SetBaudRate = 22,
-};
-
-// Extract DataFrameType from a CAN frame's extended ID (bits 28..24).
-// Returns Unknown if frame is not extended or type code is not recognized.
 DataFrameType getFrameType(const struct can_frame & in) noexcept;
 
 }  // namespace data_frame_handler
