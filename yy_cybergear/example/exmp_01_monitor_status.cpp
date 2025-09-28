@@ -172,11 +172,11 @@ inline bool wait_for_enter_or_sigint()
   return false;
 }
 
-// Main monitoring loop: print status lines and periodically ClearFaults
+// Main monitoring loop: print status lines and periodically ClearFaults (runs until SIGINT)
 inline void monitoring_loop(
   yy_socket_can::CanRuntime & rt, const std::string & ifname,
-  std::vector<yy_cybergear::CyberGear> & cgs, int rate_hz, double duration,
-  const Clock::time_point & t0, bool verbose)
+  std::vector<yy_cybergear::CyberGear> & cgs, int rate_hz, const Clock::time_point & t0,
+  bool verbose)
 {
   const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
   while (g_running) {
@@ -201,8 +201,6 @@ inline void monitoring_loop(
       }
     }
 
-    if (duration > 0.0 && t_now >= duration) break;
-
     std::this_thread::sleep_until(deadline);
   }
 }
@@ -210,14 +208,13 @@ inline void monitoring_loop(
 
 int main(int argc, char ** argv)
 {
-  // CLI options (simple): interface, motor id, duration, verbose
+  // CLI options (simple): interface, motor id, verbose
   CLI::App app{"Monitor status frames (type 2) for one or more motors"};
   std::string ifname{"can0"};
   std::vector<std::string> motor_id_strs{"0x01"};
   std::string host_id_str{"0x00"};
-  double duration = 0.0;  // seconds, 0 => run until Ctrl+C
   bool verbose = false;
-  int rate_hz = 1;
+  int rate_hz = 10;
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -229,9 +226,7 @@ int main(int argc, char ** argv)
     ->capture_default_str();
   app.add_option("-H,--host-id", host_id_str, "Host ID (decimal or 0x-prefixed hex)")
     ->capture_default_str();
-  app.add_option("-d,--duration", duration, "Run duration [s] (0 = infinite)")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
+  // duration option removed: always run until Ctrl+C
   app.add_option("-r,--rate", rate_hz, "Polling rate [Hz] for ClearFaults (>=1)")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
@@ -334,7 +329,7 @@ int main(int argc, char ** argv)
   }
 
   // Periodically post ClearFaults requests similar to exmp_02
-  monitoring_loop(rt, ifname, cgs, rate_hz, duration, t0, verbose);
+  monitoring_loop(rt, ifname, cgs, rate_hz, t0, verbose);
 
   rt.stop();
   return EXIT_SUCCESS;

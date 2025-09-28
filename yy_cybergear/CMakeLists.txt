@@ -19,13 +19,8 @@ ament_auto_add_library(${TARGET} SHARED
 )
 unset(TARGET)
 
-# # exmp_01_get_mcu_id ============================
-# set(TARGET exmp_01_get_mcu_id)
-# ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
-# unset(TARGET)
-
-# exmp_02_monitor_status ============================
-set(TARGET exmp_02_monitor_status)
+# exmp_01_monitor_status ============================
+set(TARGET exmp_01_monitor_status)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
