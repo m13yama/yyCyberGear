@@ -53,6 +53,11 @@ set(TARGET exmp_06_current_constant)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
+# exmp_07_speed_constant (CanRuntime-based) ============================
+set(TARGET exmp_07_speed_constant)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
