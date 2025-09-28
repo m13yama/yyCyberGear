@@ -44,6 +44,11 @@ set(TARGET exmp_05_current_constant)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
+# exmp_06_position_follow ============================
+set(TARGET exmp_06_position_follow)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
