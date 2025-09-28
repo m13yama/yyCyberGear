@@ -26,6 +26,12 @@ namespace yy_cybergear
 {
 namespace data_frame_handler
 {
+// Expose common types from root namespace for backward compatibility
+using OpCommand = yy_cybergear::OpCommand;
+using Status = yy_cybergear::Status;
+using FaultWarning = yy_cybergear::FaultWarning;
+constexpr int kUidLen = yy_cybergear::kUidLen;
+
 // ======== Frame type classification ========
 enum class DataFrameType : uint8_t {
   Unknown = 0xFF,
@@ -41,12 +47,6 @@ enum class DataFrameType : uint8_t {
   Type21_FaultWarning = 21,
   Type22_SetBaudRate = 22,
 };
-
-// Expose common types from root namespace for backward compatibility
-using OpCommand = yy_cybergear::OpCommand;
-using Status = yy_cybergear::Status;
-using FaultWarning = yy_cybergear::FaultWarning;
-constexpr int kUidLen = yy_cybergear::kUidLen;
 
 // ========= Builders =========
 void buildGetDeviceIdReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out);
