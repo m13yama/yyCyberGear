@@ -15,6 +15,7 @@ set(TARGET cybergear)
 ament_auto_add_library(${TARGET} SHARED
   src/${TARGET}.cpp
   src/data_frame_handler.cpp
+  src/logging.cpp
 )
 unset(TARGET)
 
