@@ -66,13 +66,16 @@ void buildFaultWarningReq(uint8_t host_id, uint8_t motor_id, struct can_frame & 
 // ========= Parsers =========
 // MCU UID response: bits 28..24 == 0, low 8 bits == 0xFE, middle bytes contain motor id
 bool parseDeviceIdResp(
-  const struct can_frame & in, uint8_t expect_motor_id, std::array<uint8_t, kUidLen> & out_uid);
-bool parseStatus(const struct can_frame & in, Status & out);
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
+  std::array<uint8_t, kUidLen> & out_uid);
+bool parseStatus(
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, Status & out);
 bool parseFaultWarningResp(
-  const struct can_frame & in, uint8_t expect_host_id, FaultWarning & out);
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
+  FaultWarning & out);
 bool parseReadParamResp(
-  const struct can_frame & in, uint8_t expect_host_id, uint16_t expect_index,
-  std::array<uint8_t, 4> & out_data);
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
+  uint16_t & out_index, std::array<uint8_t, 4> & out_data);
 
 // ======== ID helpers (for tests) ========
 constexpr uint32_t buildEffId(uint8_t type, uint8_t host_id, uint8_t motor_id) noexcept

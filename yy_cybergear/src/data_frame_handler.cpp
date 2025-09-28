@@ -78,18 +78,24 @@ inline uint32_t readLE32(const uint8_t * p)
 
 void buildGetDeviceIdReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out)
 {
+  // Build EFF-ID for type 0 (device ID request)
   const uint32_t req_id = buildEffId(0, host_id, motor_id);
+  // Use Extended Frame Format (EFF)
   out.can_id = (req_id & CAN_EFF_MASK) | CAN_EFF_FLAG;
+  // No payload for device ID request
   out.can_dlc = 0;
 }
 
 void buildOpCtrlReq(uint8_t motor_id, const OpCommand & cmd, struct can_frame & out)
 {
+  // Quantize torque (Nm) into 16-bit and embed in EFF-ID per protocol
   const uint16_t tor = f2u16(cmd.torque_Nm, -12.0f, 12.0f);
   const uint32_t id = (static_cast<uint32_t>(1u) << 24) | (static_cast<uint32_t>(tor) << 8) |
                       static_cast<uint32_t>(motor_id);
+  // Extended frame with 8-byte payload
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   out.can_dlc = 8;
+  // Quantize and pack P, V, Kp, Kd as big-endian uint16 into data[0..7]
   const uint16_t p = f2u16(cmd.pos_rad, -4.0f * kPi, 4.0f * kPi);
   const uint16_t v = f2u16(cmd.vel_rad_s, -30.0f, 30.0f);
   const uint16_t kp = f2u16(cmd.kp, 0.0f, 500.0f);
@@ -104,6 +110,7 @@ void buildStopReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out)
 {
   // According to protocol 4.1.5: type 4 is Motor stopped (data area cleared to 0)
   const uint32_t id = buildEffId(4, host_id, motor_id);
+  // Extended frame with 8 zero bytes
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   out.can_dlc = 8;
   std::memset(out.data, 0, sizeof(out.data));
@@ -116,6 +123,7 @@ void buildClearFaultsReq(uint8_t host_id, uint8_t motor_id, struct can_frame & o
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   out.can_dlc = 8;
   std::memset(out.data, 0, sizeof(out.data));
+  // Set flag to request fault clear
   out.data[0] = 0x01;
 }
 
@@ -124,6 +132,7 @@ void buildEnableReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out)
   // 4.1.4: Motor enable operation is type 3; data area cleared to 0
   const uint32_t id = buildEffId(3, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
+  // Extended frame with zeroed payload
   out.can_dlc = 8;
   std::memset(out.data, 0, sizeof(out.data));
 }
@@ -131,12 +140,14 @@ void buildEnableReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out)
 void buildChangeMotorIdReq(
   uint8_t host_id, uint8_t motor_id, uint8_t new_motor_id, struct can_frame & out)
 {
+  // Type 7: change motor ID (new ID placed in EFF-ID high byte field)
   const uint32_t id = (static_cast<uint32_t>(7u) << 24) |
                       (static_cast<uint32_t>(new_motor_id) << 16) |
                       (static_cast<uint32_t>(host_id) << 8) | static_cast<uint32_t>(motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   out.can_dlc = 8;
   std::memset(out.data, 0, sizeof(out.data));
+  // Apply flag
   out.data[0] = 0x01;
 }
 
@@ -147,19 +158,23 @@ void buildSetMechanicalZeroReq(uint8_t host_id, uint8_t motor_id, struct can_fra
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   out.can_dlc = 8;
   std::memset(out.data, 0, sizeof(out.data));
+  // Commit zeroing
   out.data[0] = 0x01;
 }
 
 void buildFaultWarningReq(uint8_t host_id, uint8_t motor_id, struct can_frame & out)
 {
+  // Type 21: query fault/warning bitfields
   const uint32_t id = buildEffId(21, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
+  // No payload required by request
   out.can_dlc = 8;
   std::memset(out.data, 0, sizeof(out.data));
 }
 
 void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct can_frame & out)
 {
+  // Type 22: set CAN baud rate, code in data[0]
   const uint32_t id = buildEffId(22, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   out.can_dlc = 8;
@@ -169,6 +184,7 @@ void buildSetBaudRateReq(uint8_t host_id, uint8_t motor_id, uint8_t code, struct
 
 void buildReadParamReq(uint8_t host_id, uint8_t motor_id, uint16_t index, struct can_frame & out)
 {
+  // Type 17: read parameter (little-endian 16-bit index in payload)
   const uint32_t id = buildEffId(17, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   out.can_dlc = 8;
@@ -181,6 +197,7 @@ void buildWriteParamReq(
   uint8_t host_id, uint8_t motor_id, uint16_t index, const std::array<uint8_t, 4> & data,
   struct can_frame & out)
 {
+  // Type 18: write parameter (LE 16-bit index + 4 bytes data)
   const uint32_t id = buildEffId(18, host_id, motor_id);
   out.can_id = (id & CAN_EFF_MASK) | CAN_EFF_FLAG;
   out.can_dlc = 8;
@@ -191,25 +208,35 @@ void buildWriteParamReq(
 }
 
 bool parseDeviceIdResp(
-  const struct can_frame & in, uint8_t expect_motor_id, std::array<uint8_t, kUidLen> & out_uid)
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
+  std::array<uint8_t, kUidLen> & out_uid)
 {
+  // Require Extended Frame Format
   if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
-  const uint32_t rid = in.can_id & CAN_EFF_MASK;
-  if (((rid >> 24) & 0x1Fu) != 0) return false;  // bits 28..24 must be 0
-  if ((rid & 0xFFu) != 0xFEu) return false;      // low 8 bits = 0xFE
-  const uint8_t mid_lo = static_cast<uint8_t>((rid >> 8) & 0xFFu);
-  const uint8_t mid_hi = static_cast<uint8_t>((rid >> 16) & 0xFFu);
-  const uint8_t mid = static_cast<uint8_t>(expect_motor_id & 0xFFu);
-  if (!((mid_lo == mid) || (mid_hi == mid))) return false;
+  const uint32_t eid = in.can_id & CAN_EFF_MASK;
+  // Check frame type
+  const auto t = getFrameType(in);
+  if (t != DataFrameType::Type0_DeviceId) return false;
+  // Verify host and motor IDs from EFF-ID
+  const uint8_t hid = static_cast<uint8_t>((eid >> 16) & 0xFFu);
+  if (hid != expect_host_id) return false;
+  const uint8_t mid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
+  if (mid != expect_motor_id) return false;
+  // Response spec: low 8 bits should be 0xFE
+  if ((eid & 0xFFu) != 0xFEu) return false;
+  // UID length must match
   if (in.can_dlc != kUidLen) return false;
-  std::copy_n(std::begin(in.data), kUidLen, out_uid.begin());
+  // Copy UID bytes
+  std::copy_n(&in.data[0], kUidLen, out_uid.begin());
   return true;
 }
 
 DataFrameType getFrameType(const struct can_frame & in) noexcept
 {
+  // Only extended frames carry typed EIDs
   if ((in.can_id & CAN_EFF_FLAG) == 0) return DataFrameType::Unknown;
   const uint32_t eid = in.can_id & CAN_EFF_MASK;
+  // Decode 5-bit type field from EID (bits 24..28)
   const uint8_t type = static_cast<uint8_t>((eid >> 24) & 0x1Fu);
   switch (type) {
     case 0:
@@ -240,19 +267,101 @@ DataFrameType getFrameType(const struct can_frame & in) noexcept
   return DataFrameType::Unknown;
 }
 
-bool parseStatus(const struct can_frame & in, Status & out)
+bool parseFaultWarningResp(
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, FaultWarning & out)
 {
+  // Check Extended Frame Format (EFF)
   if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
+
+  // Check frame type
+  const auto t = getFrameType(in);
+  if (t != DataFrameType::Type21_FaultWarning) return false;
+
+  // Extract extended ID
   const uint32_t eid = in.can_id & CAN_EFF_MASK;
-  const uint8_t type = static_cast<uint8_t>((eid >> 24) & 0x1Fu);
-  if (type != 2) return false;
+
+  // Check host id
+  const uint8_t hid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
+  if (hid != expect_host_id) return false;
+
+  // Check motor id
+  const uint8_t mid = static_cast<uint8_t>(eid & 0xFFu);
+  if (mid != expect_motor_id) return false;
+
+  // Expect 8-byte payload
   if (in.can_dlc != 8) return false;
 
-  out.motor_can_id = static_cast<uint8_t>((eid >> 8) & 0xFFu);
+  // Parse LE32 fault and warning bitfields
+  out.faults = readLE32(&in.data[0]);
+  out.warnings = readLE32(&in.data[4]);
+
+  return true;
+}
+
+bool parseReadParamResp(
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id,
+  uint16_t & out_index, std::array<uint8_t, 4> & out_data)
+{
+  // Check Extended Frame Format (EFF)
+  if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
+
+  // Check frame type
+  const auto t = getFrameType(in);
+  if (t != DataFrameType::Type17_ReadParam) return false;
+
+  // Extract extended ID
+  const uint32_t eid = in.can_id & CAN_EFF_MASK;
+
+  // Check host id
+  const uint8_t hid = static_cast<uint8_t>(eid & 0xFFu);
+  if (hid != expect_host_id) return false;
+
+  // Check motor id
+  const uint8_t mid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
+  if (mid != expect_motor_id) return false;
+
+  // Expect 8-byte payload
+  if (in.can_dlc != 8) return false;
+
+  // Read LE16 index and copy 4 bytes of data
+  const uint16_t idx = readLE16(&in.data[0]);
+  out_index = idx;
+  std::copy_n(&in.data[4], 4, out_data.begin());
+
+  return true;
+}
+
+bool parseStatus(
+  const struct can_frame & in, uint8_t expect_host_id, uint8_t expect_motor_id, Status & out)
+{
+  // Check Extended Frame Format (EFF)
+  if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
+
+  // Check frame type
+  const auto t = getFrameType(in);
+  if (t != DataFrameType::Type2_Status) return false;
+
+  // Extract extended ID
+  const uint32_t eid = in.can_id & CAN_EFF_MASK;
+
+  // Check host id
+  const uint8_t hid = static_cast<uint8_t>(eid & 0xFFu);
+  if (hid != expect_host_id) return false;
+
+  // Check motor id
+  const uint8_t mid = static_cast<uint8_t>((eid >> 8) & 0xFFu);
+  if (mid != expect_motor_id) return false;
+
+  // Expect 8-byte payload
+  if (in.can_dlc != 8) return false;
+
+  // Parse motor status encoded in EFF-ID bits
+  out.motor_can_id = mid;
   out.fault_bits = static_cast<uint8_t>((eid >> 16) & 0x3Fu);
   out.mode = static_cast<uint8_t>((eid >> 22) & 0x03u);
   out.raw_eff_id = eid;
 
+  // Parse motor status payload (big-endian u16 fields)
   const uint16_t u_pos = readBE16(&in.data[0]);
   const uint16_t u_vel = readBE16(&in.data[2]);
   const uint16_t u_tor = readBE16(&in.data[4]);
@@ -261,37 +370,7 @@ bool parseStatus(const struct can_frame & in, Status & out)
   out.vel_rad_s = u16toF(u_vel, -30.0f, 30.0f);
   out.torque_Nm = u16toF(u_tor, -12.0f, 12.0f);
   out.temperature_c = static_cast<float>(u_tmp) / 10.0f;
-  return true;
-}
 
-bool parseFaultWarningResp(const struct can_frame & in, uint8_t expect_host_id, FaultWarning & out)
-{
-  if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
-  const uint32_t eid = in.can_id & CAN_EFF_MASK;
-  const uint8_t type = static_cast<uint8_t>((eid >> 24) & 0x1Fu);
-  if (type != 21) return false;
-  // 4.1.10: Bit 15..8 holds Host CAN_ID in the ID field for fault frames
-  if (static_cast<uint8_t>((eid >> 8) & 0xFFu) != expect_host_id) return false;
-  if (in.can_dlc != 8) return false;
-  out.faults = readLE32(&in.data[0]);
-  out.warnings = readLE32(&in.data[4]);
-  return true;
-}
-
-bool parseReadParamResp(
-  const struct can_frame & in, uint8_t expect_host_id, uint16_t expect_index,
-  std::array<uint8_t, 4> & out_data)
-{
-  if ((in.can_id & CAN_EFF_FLAG) == 0) return false;
-  const uint32_t eid = in.can_id & CAN_EFF_MASK;
-  const uint8_t type = static_cast<uint8_t>((eid >> 24) & 0x1Fu);
-  if (type != 17) return false;
-  if ((eid & 0xFFu) != expect_host_id) return false;
-  if (in.can_dlc != 8) return false;
-  // Parameter index is little-endian in payload
-  const uint16_t idx = readLE16(&in.data[0]);
-  if (idx != expect_index) return false;
-  std::copy_n(&in.data[4], 4, out_data.begin());
   return true;
 }
 
