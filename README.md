@@ -27,7 +27,7 @@
 
     ```bash
     ./tools/up.bash           # デフォルト設定 (1 Mbps, txqueuelen=1000)
-    IFACE=can1 ./tools/up.bash # IFACE 変数を上書きして別デバイスを初期化
+    # ※ インターフェース名を変更したい場合は tools/up.bash 内の IFACE 変数を直接編集してください
     ```
 
 ## ビルド手順
