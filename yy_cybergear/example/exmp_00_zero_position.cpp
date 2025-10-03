@@ -20,7 +20,6 @@
 #include <unistd.h>
 
 #include <CLI/CLI.hpp>
-#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <csignal>
