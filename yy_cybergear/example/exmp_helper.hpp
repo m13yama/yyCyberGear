@@ -60,7 +60,7 @@ inline bool check_for_errors(const yy_cybergear::CyberGear & cg)
               << std::setfill('0') << fault_bits << std::dec << "\n";
 
     auto fault_strings =
-      yy_cybergear::logging::faultBitsToString(static_cast<uint8_t>(fault_bits & 0xFF));
+      yy_cybergear::logging::faultBitsToString(fault_bits);
     for (const auto & fault : fault_strings) {
       std::cerr << "  - " << fault << "\n";
     }
