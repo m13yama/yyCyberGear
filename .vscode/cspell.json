@@ -13,6 +13,7 @@
     "exmp",
     "gtest",
     "htmlcov",
+    "IFACE",
     "libqt",
     "Mbps",
     "nosetests",
@@ -21,6 +22,7 @@
     "pytest",
     "sdist",
     "SIOCGIFINDEX",
+    "txqueuelen",
     "Undervoltage",
     "vcstool",
     "yycdf"
