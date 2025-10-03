@@ -56,6 +56,56 @@ inline void print_params(const yy_cybergear::CyberGear & cg)
   std::cout << yy_cybergear::logging::formatParamsSummary(cg);
 }
 
+inline bool check_for_errors(const yy_cybergear::CyberGear & cg)
+{
+  // Check status frame fault bits (from regular status updates)
+  if (cg.isStatusInitialized()) {
+    const auto status = cg.getStatus();
+    if (status.fault_bits != 0) {
+      std::cerr << "ERROR: Motor 0x" << std::uppercase << std::hex << std::setw(2)
+                << std::setfill('0') << static_cast<unsigned>(cg.motor_id()) << std::dec
+                << " has status fault bits: 0x" << std::uppercase << std::hex << std::setw(2)
+                << std::setfill('0') << static_cast<unsigned>(status.fault_bits) << std::dec
+                << "\n";
+
+      auto fault_strings = yy_cybergear::logging::faultBitsToString(status.fault_bits);
+      for (const auto & fault : fault_strings) {
+        std::cerr << "  - " << fault << "\n";
+      }
+      return true;
+    }
+  }
+
+  // Check aggregate fault/warning bits (from fault/warning responses)
+  const uint32_t fault_bits = cg.fault_bits_agg();
+  const uint32_t warning_bits = cg.warning_bits_agg();
+
+  if (fault_bits != 0) {
+    std::cerr << "ERROR: Motor 0x" << std::uppercase << std::hex << std::setw(2)
+              << std::setfill('0') << static_cast<unsigned>(cg.motor_id()) << std::dec
+              << " has aggregate fault bits: 0x" << std::uppercase << std::hex << std::setw(8)
+              << std::setfill('0') << fault_bits << std::dec << "\n";
+
+    // Decode lower 8 bits using existing fault bit decoder
+    auto fault_strings =
+      yy_cybergear::logging::faultBitsToString(static_cast<uint8_t>(fault_bits & 0xFF));
+    for (const auto & fault : fault_strings) {
+      std::cerr << "  - " << fault << "\n";
+    }
+    return true;
+  }
+
+  if (warning_bits != 0) {
+    std::cerr << "WARNING: Motor 0x" << std::uppercase << std::hex << std::setw(2)
+              << std::setfill('0') << static_cast<unsigned>(cg.motor_id()) << std::dec
+              << " has warning bits: 0x" << std::uppercase << std::hex << std::setw(8)
+              << std::setfill('0') << warning_bits << std::dec << "\n";
+    // Note: For now we don't exit on warnings, only on faults
+  }
+
+  return false;  // No errors detected
+}
+
 inline void register_can_handler(
   yy_socket_can::CanRuntime & rt, std::vector<yy_cybergear::CyberGear> & cgs, bool verbose)
 {
@@ -273,6 +323,15 @@ int main(int argc, char ** argv)
   };
   preflight_sync(rt, ifname, cgs, preflight_params, verbose);
 
+  // Check for errors after preflight sync
+  for (const auto & cg : cgs) {
+    if (check_for_errors(cg)) {
+      std::cerr << "ERROR: Motor faults detected during initialization. Exiting.\n";
+      rt.stop();
+      return EXIT_FAILURE;
+    }
+  }
+
   std::cout << "\nCollected parameters (including UID):\n";
   for (const auto & cg : cgs) print_params(cg);
 
@@ -336,6 +395,16 @@ int main(int argc, char ** argv)
       }
     }
     if (!master_found) break;  // unlikely
+
+    // Check for errors in all motors and exit if any are found
+    for (const auto & cg : cgs) {
+      if (check_for_errors(cg)) {
+        std::cerr << "ERROR: Stopping all motors due to detected faults.\n";
+        g_running = false;
+        break;
+      }
+    }
+    if (!g_running) break;
 
     // Print snapshot for each motor
     for (const auto & cg : cgs) print_status(cg, t_now);
