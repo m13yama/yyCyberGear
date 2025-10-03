@@ -4,9 +4,9 @@
 # ============================================
 
 # Settings
-IFACE="can0"
-BITRATE=1000000     # 1Mbps
-TX_QUEUE_LEN=1000   # TX queue length (default is ~10; increased)
+: "${IFACE:=can0}"
+: "${BITRATE:=1000000}"     # 1Mbps
+: "${TX_QUEUE_LEN:=1000}"   # TX queue length (default is ~10; increased)
 
 echo "🔧 Setting up $IFACE (bitrate=${BITRATE}, txqueuelen=${TX_QUEUE_LEN})..."
 
