@@ -51,7 +51,7 @@ namespace
 std::atomic<bool> g_running{true};
 void handle_sigint(int) { g_running = false; }
 
-// Aliases used across helpers (match exmp_01)
+// Alias used from exmp_helper: Clock
 using exmp_helper::Clock;
 
 // Centralized logging lives in yy_cybergear/logging.hpp (append command info)
