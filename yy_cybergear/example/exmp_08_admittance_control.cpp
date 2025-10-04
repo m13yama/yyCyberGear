@@ -16,7 +16,7 @@
 // - Capture current pose as neutral before enabling the actuator.
 // - Read joint torque from status frames and integrate a virtual mass-spring-damper model.
 // - Command Position mode references derived from the admittance state.
-// - Enforces displacement/velocity limits and monitors for faults each loop iteration.
+// - Monitors for faults each loop iteration.
 
 #include <linux/can.h>
 #include <poll.h>
@@ -73,14 +73,12 @@ int main(int argc, char ** argv)
   bool verbose = false;
   int rate_hz = 200;
 
-  double virtual_mass = 0.05;           // virtual inertia [N·m·s^2/rad]
-  double virtual_damping = 0.4;         // virtual damping [N·m·s/rad]
-  double virtual_stiffness = 0.8;       // virtual stiffness [N·m/rad]
-  double displacement_limit_rad = 0.6;  // max admittance displacement [rad]
-  double velocity_limit_rad_s = 4.0;    // max admittance velocity [rad/s]
-  double torque_bias_nm = 0.0;          // subtract constant torque bias [N·m]
-  double torque_deadband_nm = 0.02;     // ignore small torques [N·m]
-  double speed_limit_rad_s = 12.0;      // firmware Position-mode speed limit [rad/s]
+  double virtual_mass = 0.05;        // virtual inertia [N·m·s^2/rad]
+  double virtual_damping = 0.4;      // virtual damping [N·m·s/rad]
+  double virtual_stiffness = 0.8;    // virtual stiffness [N·m/rad]
+  double torque_bias_nm = 0.0;       // subtract constant torque bias [N·m]
+  double torque_deadband_nm = 0.02;  // ignore small torques [N·m]
+  double speed_limit_rad_s = 12.0;   // firmware Position-mode speed limit [rad/s]
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -103,16 +101,6 @@ int main(int argc, char ** argv)
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
   app.add_option("--stiffness", virtual_stiffness, "Virtual stiffness term K [N·m/rad]")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app
-    .add_option(
-      "--disp-limit", displacement_limit_rad, "Clamp admittance displacement |theta| [rad]")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app
-    .add_option(
-      "--vel-limit", velocity_limit_rad_s, "Clamp admittance velocity |theta_dot| [rad/s]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
   app.add_option("--torque-bias", torque_bias_nm, "Torque bias to subtract [N·m]")
@@ -216,9 +204,7 @@ int main(int argc, char ** argv)
             << std::setfill('0') << static_cast<unsigned>(motor_id) << std::dec << " on " << ifname
             << "\n  M=" << virtual_mass << " N·m·s^2/rad, D=" << virtual_damping
             << " N·m·s/rad, K=" << virtual_stiffness << " N·m/rad"
-            << "\n  disp limit=" << displacement_limit_rad
-            << " rad, vel limit=" << velocity_limit_rad_s
-            << " rad/s, torque deadband=" << torque_deadband_nm << " N·m" << std::endl;
+            << "\n  torque deadband=" << torque_deadband_nm << " N·m" << std::endl;
 
   const std::vector<uint16_t> preflight_params = {
     yy_cybergear::RUN_MODE,
@@ -360,14 +346,8 @@ int main(int argc, char ** argv)
     if (!std::isfinite(accel)) accel = 0.0;
 
     admittance_vel += accel * dt;
-    if (velocity_limit_rad_s > 0.0) {
-      admittance_vel = std::clamp(admittance_vel, -velocity_limit_rad_s, velocity_limit_rad_s);
-    }
 
     admittance_pos += admittance_vel * dt;
-    if (displacement_limit_rad > 0.0) {
-      admittance_pos = std::clamp(admittance_pos, -displacement_limit_rad, displacement_limit_rad);
-    }
 
     const double desired_angle = static_cast<double>(neutral_angle) + admittance_pos;
 
