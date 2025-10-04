@@ -226,6 +226,21 @@ int main(int argc, char ** argv)
     }
   }
 
+  std::cout << "Zeroing mechanical position for both motors ..." << std::endl;
+  for (auto & cg : cgs) {
+    struct can_frame tx
+    {
+    };
+    cg.buildSetMechanicalZero(tx);
+    rt.post(yy_socket_can::TxRequest{ifname, tx});
+    if (verbose) {
+      const uint32_t id = tx.can_id & CAN_EFF_MASK;
+      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
+                << " (SetMechanicalZero)\n";
+    }
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
   float neutral_offset = 0.0f;
   bool neutral_captured = false;
 
