@@ -59,6 +59,11 @@ set(TARGET exmp_07_bilateral_control)
 ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
 unset(TARGET)
 
+# exmp_08_admittance_control ============================
+set(TARGET exmp_08_admittance_control)
+ament_auto_add_executable(${TARGET} example/${TARGET}.cpp)
+unset(TARGET)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
