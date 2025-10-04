@@ -73,15 +73,15 @@ int main(int argc, char ** argv)
   bool verbose = false;
   int rate_hz = 200;
 
-  double virtual_mass = 0.05;                 // virtual inertia [N·m·s^2/rad]
-  double virtual_damping = 0.4;               // virtual damping [N·m·s/rad]
-  double virtual_stiffness = 1.5;             // virtual stiffness [N·m/rad]
-  double displacement_limit_rad = 0.6;        // max admittance displacement [rad]
-  double velocity_limit_rad_s = 4.0;          // max admittance velocity [rad/s]
-  double torque_bias_nm = 0.0;                // subtract constant torque bias [N·m]
-  double torque_deadband_nm = 0.02;           // ignore small torques [N·m]
-  double torque_alpha = 1.0;                  // EMA coefficient (1.0 = no filtering)
-  double speed_limit_rad_s = 12.0;            // firmware Position-mode speed limit [rad/s]
+  double virtual_mass = 0.05;           // virtual inertia [N·m·s^2/rad]
+  double virtual_damping = 0.4;         // virtual damping [N·m·s/rad]
+  double virtual_stiffness = 1.5;       // virtual stiffness [N·m/rad]
+  double displacement_limit_rad = 0.6;  // max admittance displacement [rad]
+  double velocity_limit_rad_s = 4.0;    // max admittance velocity [rad/s]
+  double torque_bias_nm = 0.0;          // subtract constant torque bias [N·m]
+  double torque_deadband_nm = 0.02;     // ignore small torques [N·m]
+  double torque_alpha = 1.0;            // EMA coefficient (1.0 = no filtering)
+  double speed_limit_rad_s = 12.0;      // firmware Position-mode speed limit [rad/s]
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -89,8 +89,7 @@ int main(int argc, char ** argv)
     ->capture_default_str();
   app
     .add_option(
-      "-M,--motor-id", motor_id_strs,
-      "Motor ID (single motor; decimal or 0x-prefixed hex)")
+      "-M,--motor-id", motor_id_strs, "Motor ID (single motor; decimal or 0x-prefixed hex)")
     ->delimiter(',')
     ->capture_default_str();
   app.add_option("-r,--rate", rate_hz, "Control loop rate [Hz] (max 200)")
@@ -107,23 +106,31 @@ int main(int argc, char ** argv)
   app.add_option("--stiffness", virtual_stiffness, "Virtual stiffness term K [N·m/rad]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
-  app.add_option("--disp-limit", displacement_limit_rad, "Clamp admittance displacement |theta| [rad]")
+  app
+    .add_option(
+      "--disp-limit", displacement_limit_rad, "Clamp admittance displacement |theta| [rad]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
-  app.add_option("--vel-limit", velocity_limit_rad_s, "Clamp admittance velocity |theta_dot| [rad/s]")
+  app
+    .add_option(
+      "--vel-limit", velocity_limit_rad_s, "Clamp admittance velocity |theta_dot| [rad/s]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
   app.add_option("--torque-bias", torque_bias_nm, "Torque bias to subtract [N·m]")
     ->capture_default_str();
-  app.add_option("--torque-deadband", torque_deadband_nm, "Deadband before admitting torque [N·m]")
+  app
+    .add_option("--torque-deadband", torque_deadband_nm, "Deadband before admitting torque [N·m]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
-  app.add_option("--torque-alpha", torque_alpha,
-    "EMA coefficient for torque filtering (1=no filter, 0<alpha<=1)")
+  app
+    .add_option(
+      "--torque-alpha", torque_alpha,
+      "EMA coefficient for torque filtering (1=no filter, 0<alpha<=1)")
     ->check(CLI::Range(0.0, 1.0))
     ->capture_default_str();
-  app.add_option("--speed-limit", speed_limit_rad_s,
-    "Firmware speed limit applied in Position mode [rad/s]")
+  app
+    .add_option(
+      "--speed-limit", speed_limit_rad_s, "Firmware speed limit applied in Position mode [rad/s]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
 
@@ -195,7 +202,8 @@ int main(int argc, char ** argv)
             << std::setfill('0') << static_cast<unsigned>(motor_id) << std::dec << " on " << ifname
             << "\n  M=" << virtual_mass << " N·m·s^2/rad, D=" << virtual_damping
             << " N·m·s/rad, K=" << virtual_stiffness << " N·m/rad"
-            << "\n  disp limit=" << displacement_limit_rad << " rad, vel limit=" << velocity_limit_rad_s
+            << "\n  disp limit=" << displacement_limit_rad
+            << " rad, vel limit=" << velocity_limit_rad_s
             << " rad/s, torque deadband=" << torque_deadband_nm << " N·m" << std::endl;
 
   const std::vector<uint16_t> preflight_params = {
@@ -223,7 +231,9 @@ int main(int argc, char ** argv)
   std::cout << "\nCollected parameters and UID:\n";
   for (const auto & motor : cgs) print_params(motor);
 
-  std::cout << "\nAlign the motor to the desired neutral pose, then press Enter to capture neutral." << std::endl;
+  std::cout
+    << "\nAlign the motor to the desired neutral pose, then press Enter to capture neutral."
+    << std::endl;
   if (!wait_for_enter_or_sigint(g_running)) {
     rt.stop();
     return EXIT_SUCCESS;
@@ -233,17 +243,17 @@ int main(int argc, char ** argv)
     return EXIT_SUCCESS;
   }
 
-  if (!cgs.front().isStatusInitialized()) {
-    std::cerr << "Waiting for status frames to provide torque feedback..." << std::endl;
-    while (g_running && rt.isRunning() && !cgs.front().isStatusInitialized()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
-    if (!cgs.front().isStatusInitialized()) {
-      std::cerr << "No status frames received; cannot perform admittance control." << std::endl;
-      rt.stop();
-      return EXIT_FAILURE;
-    }
-  }
+  // if (!cgs.front().isStatusInitialized()) {
+  //   std::cerr << "Waiting for status frames to provide torque feedback..." << std::endl;
+  //   while (g_running && rt.isRunning() && !cgs.front().isStatusInitialized()) {
+  //     std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  //   }
+  //   if (!cgs.front().isStatusInitialized()) {
+  //     std::cerr << "No status frames received; cannot perform admittance control." << std::endl;
+  //     rt.stop();
+  //     return EXIT_FAILURE;
+  //   }
+  // }
 
   const float neutral_angle = current_angle_rad(cgs.front());
   std::cout << "Captured neutral angle: " << neutral_angle << " rad" << std::endl;
@@ -348,10 +358,11 @@ int main(int argc, char ** argv)
       torque_filtered_nm = torque_measured_nm;
       torque_initialized = true;
     } else {
-      torque_filtered_nm = torque_alpha * torque_measured_nm + (1.0 - torque_alpha) * torque_filtered_nm;
+      torque_filtered_nm =
+        torque_alpha * torque_measured_nm + (1.0 - torque_alpha) * torque_filtered_nm;
     }
 
-    double accel = (torque_filtered_nm - virtual_damping * admittance_vel -
+    double accel = (-torque_filtered_nm - virtual_damping * admittance_vel -
                     virtual_stiffness * admittance_pos) /
                    virtual_mass;
     if (!std::isfinite(accel)) accel = 0.0;
