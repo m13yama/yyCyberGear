@@ -191,6 +191,27 @@ int main(int argc, char ** argv)
   register_can_handler(rt, cgs, verbose);
   rt.start();
 
+  const auto clear_timeout = Clock::now() + std::chrono::milliseconds(1000);
+  while (g_running && rt.isRunning()) {
+    bool all_status_ready = true;
+    for (auto & cg : cgs) {
+      if (cg.isStatusInitialized()) continue;
+      all_status_ready = false;
+      struct can_frame tx
+      {
+      };
+      cg.buildClearFaults(tx);
+      rt.post(yy_socket_can::TxRequest{ifname, tx});
+      if (verbose) {
+        const uint32_t id = tx.can_id & CAN_EFF_MASK;
+        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
+                  << " (ClearFaults initial)\n";
+      }
+    }
+    if (all_status_ready || Clock::now() >= clear_timeout) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+
   std::cout << "Admittance control motor 0x" << std::uppercase << std::hex << std::setw(2)
             << std::setfill('0') << static_cast<unsigned>(motor_id) << std::dec << " on " << ifname
             << "\n  M=" << virtual_mass << " N·m·s^2/rad, D=" << virtual_damping
