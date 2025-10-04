@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Bilateral current control sample:
-// - Two motors share motion like a virtual rigid bar using current mode.
-// - Read angles/velocities from status mirror and compute differential torque.
-// - Command equal and opposite motor currents with configurable stiffness / damping.
+// Four-channel impedance teleoperation sample:
+// - Treat the first motor ID as "master" (operator side) and the second as "slave" (remote side).
+// - Estimate velocities and accelerations from status feedback to build a virtual reaction force.
+// - Apply a 4-channel controller (position + force) and command symmetric current references.
 
 #include <linux/can.h>
 #include <poll.h>
@@ -70,11 +70,17 @@ float current_velocity_rad_s(const yy_cybergear::CyberGear & cg)
   return cg.mechanical_velocity();
 }
 
+float current_torque_nm(const yy_cybergear::CyberGear & cg)
+{
+  if (cg.isStatusInitialized()) return cg.getStatus().torque_Nm;
+  return 0.0f;
+}
+
 }  // namespace
 
 int main(int argc, char ** argv)
 {
-  CLI::App app{"exmp_07: bilateral current coupling between two motors"};
+  CLI::App app{"exmp_07: four-channel impedance control (master/slave current mode)"};
 
   std::string ifname{"can0"};
   std::string host_id_str{"0x00"};
@@ -88,9 +94,17 @@ int main(int argc, char ** argv)
   int approach_hold_ms = 300;            // keep within tol for this long [ms]
   double approach_timeout_s = 10.0;      // abort if not reached within this time [s]
 
-  double stiffness_a_per_rad = 3.0;   // virtual stiffness [A/rad]
-  double damping_a_per_rad_s = 0.08;  // virtual damping [A/(rad/s)]
-  double iq_limit = 8.0;              // saturate commanded currents [A]
+  // Four-channel control gains (default tuned for gentle response)
+  double kx_gain_a_per_rad = 8.0;   // position coupling gain (Kx)
+  double kf_gain_a_per_unit = 1.5;  // force coupling gain (Kf)
+  double mv_virtual = 0.04;         // virtual mass term (Mv)
+  double bv_virtual = 0.35;         // virtual damping term (Bv)
+  double kv_virtual = 1.5;          // virtual stiffness term (Kv)
+  double force_scale = 1.0;         // scale torque_Nm -> force units for Fs
+  double force_bias = 0.0;          // bias added to measured force after scaling
+  double force_alpha = 0.2;         // EWMA for measured force (0..1)
+  double accel_alpha = 0.3;         // EWMA for acceleration estimate (0..1)
+  double iq_limit = 20.0;           // saturate commanded currents [A]
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -99,17 +113,38 @@ int main(int argc, char ** argv)
   app
     .add_option(
       "-M,--motor-id", motor_id_strs,
-      "Motor IDs for bilateral pair (repeat -M or comma-separated; decimal or 0x-prefixed hex)")
+      "Motor IDs for master/slave pair (repeat -M or comma-separated; decimal or 0x-prefixed hex)")
     ->delimiter(',')
     ->capture_default_str();
   app.add_option("-r,--rate", rate_hz, "Control loop rate [Hz] (max 200)")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
-  app.add_option("-k,--stiffness", stiffness_a_per_rad, "Virtual stiffness gain [A/rad]")
+  app.add_option("--kx", kx_gain_a_per_rad, "Position gain Kx [A/rad]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
-  app.add_option("-d,--damping", damping_a_per_rad_s, "Virtual damping gain [A/(rad/s)]")
+  app.add_option("--kf", kf_gain_a_per_unit, "Force gain Kf [A/unit]")
     ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  app.add_option("--mv", mv_virtual, "Virtual mass Mv (force / rad/s^2)")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  app.add_option("--bv", bv_virtual, "Virtual damping Bv (force / rad/s)")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  app.add_option("--kv", kv_virtual, "Virtual stiffness Kv (force / rad)")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  app.add_option("--force-scale", force_scale, "Scale applied to slave torque_Nm before using as Fs")
+    ->capture_default_str();
+  app.add_option("--force-bias", force_bias, "Bias added to measured force Fs after scaling")
+    ->capture_default_str();
+  app
+    .add_option("--force-alpha", force_alpha, "EWMA coefficient for force measurement (0..1)")
+    ->check(CLI::Range(0.0, 1.0))
+    ->capture_default_str();
+  app
+    .add_option("--accel-alpha", accel_alpha, "EWMA coefficient for acceleration estimate (0..1)")
+    ->check(CLI::Range(0.0, 1.0))
     ->capture_default_str();
   app.add_option("-l,--limit", iq_limit, "Current saturation limit |Iq| [A]")
     ->check(CLI::NonNegativeNumber)
@@ -144,6 +179,9 @@ int main(int argc, char ** argv)
     rate_hz = 200;
   }
 
+  force_alpha = std::clamp(force_alpha, 0.0, 1.0);
+  accel_alpha = std::clamp(accel_alpha, 0.0, 1.0);
+
   unsigned long host_ul = 0x00UL;
   try {
     host_ul = std::stoul(host_id_str, nullptr, 0);
@@ -173,7 +211,7 @@ int main(int argc, char ** argv)
     }
   }
   if (motors.size() != 2) {
-    std::cerr << "Provide exactly two motor IDs for bilateral control.\n";
+    std::cerr << "Provide exactly two motor IDs for four-channel control (master + slave).\n";
     return EXIT_FAILURE;
   }
   if (motors[0] == motors[1]) {
@@ -197,15 +235,18 @@ int main(int argc, char ** argv)
   register_can_handler(rt, cgs, verbose);
   rt.start();
 
-  std::cout << "Bilateral current coupling motors [0x" << std::uppercase << std::hex
-            << std::setw(2) << std::setfill('0') << static_cast<unsigned>(motors[0]) << ", 0x"
-            << std::setw(2) << static_cast<unsigned>(motors[1]) << std::dec << "] on " << ifname
-            << "\n  approach: speed=" << approach_speed_rad_s
-            << " rad/s, tol=" << approach_tolerance_rad << " rad, hold=" << approach_hold_ms
-            << " ms, timeout=" << approach_timeout_s << " s"
-            << "\n  current mode: stiffness=" << stiffness_a_per_rad << " A/rad"
-            << ", damping=" << damping_a_per_rad_s << " A/(rad/s)"
-            << ", limit=" << iq_limit << " A, rate=" << rate_hz << " Hz" << '\n';
+  std::cout << "Four-channel impedance control master=0x" << std::uppercase << std::hex
+            << std::setw(2) << std::setfill('0') << static_cast<unsigned>(motors[0])
+            << ", slave=0x" << std::setw(2) << static_cast<unsigned>(motors[1]) << std::dec
+            << std::setfill(' ') << " on " << ifname << '\n'
+            << "  approach: speed=" << approach_speed_rad_s << " rad/s, tol="
+            << approach_tolerance_rad << " rad, hold=" << approach_hold_ms << " ms, timeout="
+            << approach_timeout_s << " s\n"
+            << "  Kx=" << kx_gain_a_per_rad << " A/rad, Kf=" << kf_gain_a_per_unit
+            << " A/unit, |Iq| limit=" << iq_limit << " A, rate=" << rate_hz << " Hz\n"
+            << "  Virtual mass Mv=" << mv_virtual << ", Bv=" << bv_virtual << ", Kv="
+            << kv_virtual << ", force_scale=" << force_scale << ", force_alpha=" << force_alpha
+            << ", accel_alpha=" << accel_alpha << '\n';
 
   const std::vector<uint16_t> preflight_params = {
     yy_cybergear::RUN_MODE,
@@ -393,12 +434,35 @@ int main(int argc, char ** argv)
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
+  struct DerivedState
+  {
+    float prev_vel_rad_s{0.0f};
+    float accel_rad_s2{0.0f};
+    bool has_prev{false};
+  };
+
+  DerivedState master_state;
+  DerivedState slave_state;
+
+  double filtered_force = 0.0;
+  bool force_initialized = false;
+
   float neutral_offset = 0.0f;
   bool neutral_captured = false;
 
   const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
+  auto last_loop_time = Clock::now();
+  bool first_loop_iteration = true;
+
   while (g_running && rt.isRunning()) {
     const auto t = Clock::now();
+    double dt = first_loop_iteration
+                  ? (1.0 / static_cast<double>(std::max(1, rate_hz)))
+                  : std::chrono::duration<double>(t - last_loop_time).count();
+    last_loop_time = t;
+    first_loop_iteration = false;
+    if (dt <= 1e-6) dt = 1.0 / static_cast<double>(std::max(1, rate_hz));
+
     const double t_now = std::chrono::duration<double>(t - t0).count();
 
     for (const auto & cg : cgs) {
@@ -410,48 +474,98 @@ int main(int argc, char ** argv)
     }
     if (!g_running) break;
 
-    const float angle_a = current_angle_rad(cgs[0]);
-    const float angle_b = current_angle_rad(cgs[1]);
-    const float vel_a = current_velocity_rad_s(cgs[0]);
-    const float vel_b = current_velocity_rad_s(cgs[1]);
+    const float xm = current_angle_rad(cgs[0]);
+    const float xs = current_angle_rad(cgs[1]);
+    const float vm = current_velocity_rad_s(cgs[0]);
+    const float vs = current_velocity_rad_s(cgs[1]);
 
     if (!neutral_captured) {
-      neutral_offset = angle_a - angle_b;
+      neutral_offset = xs - xm;
       neutral_captured = true;
     }
 
-    const float angle_error = (angle_a - angle_b) - neutral_offset;
-    const float vel_error = vel_a - vel_b;
+    auto update_accel = [dt, accel_alpha](DerivedState & state, float vel) {
+      float velocity = std::isfinite(vel) ? vel : 0.0f;
+      if (!state.has_prev) {
+        state.prev_vel_rad_s = velocity;
+        state.accel_rad_s2 = 0.0f;
+        state.has_prev = true;
+        return state.accel_rad_s2;
+      }
 
-    const double torque_cmd = stiffness_a_per_rad * static_cast<double>(angle_error) +
-                              damping_a_per_rad_s * static_cast<double>(vel_error);
+      double raw = 0.0;
+      if (dt > 1e-6) {
+        raw = (static_cast<double>(velocity) - static_cast<double>(state.prev_vel_rad_s)) / dt;
+      }
+      if (!std::isfinite(raw)) raw = 0.0;
+
+      state.accel_rad_s2 = static_cast<float>(
+        accel_alpha * raw + (1.0 - accel_alpha) * static_cast<double>(state.accel_rad_s2));
+      state.prev_vel_rad_s = velocity;
+      state.has_prev = true;
+      return state.accel_rad_s2;
+    };
+
+    const float am = update_accel(master_state, vm);
+    const float as = update_accel(slave_state, vs);
+
+    const float torque_slave_nm = current_torque_nm(cgs[1]);
+    double measured_force = static_cast<double>(torque_slave_nm) * force_scale + force_bias;
+    if (!std::isfinite(measured_force)) measured_force = 0.0;
+
+    if (!force_initialized) {
+      filtered_force = measured_force;
+      force_initialized = true;
+    } else {
+      filtered_force = force_alpha * measured_force + (1.0 - force_alpha) * filtered_force;
+    }
+
+    const double pos_diff = static_cast<double>((xs - xm) - neutral_offset);
+    const double vel_diff = static_cast<double>(vs - vm);
+    const double accel_diff = static_cast<double>(as - am);
+
+    const double fm_star = mv_virtual * accel_diff + bv_virtual * vel_diff + kv_virtual * pos_diff;
+    const double combined_force = filtered_force + fm_star;
+
+    double um = kx_gain_a_per_rad * pos_diff + kf_gain_a_per_unit * combined_force;
+    double us = -kx_gain_a_per_rad * pos_diff - kf_gain_a_per_unit * combined_force;
 
     const double sat = std::max(0.0, iq_limit);
-    const double iq_a_cmd = std::clamp(-torque_cmd, -sat, sat);
-    const double iq_b_cmd = std::clamp(+torque_cmd, -sat, sat);
+    um = std::clamp(um, -sat, sat);
+    us = std::clamp(us, -sat, sat);
 
     for (const auto & cg : cgs) print_status(cg, t_now);
 
-    struct can_frame tx_a
-    {
-    };
-    cgs[0].buildSetIqReference(static_cast<float>(iq_a_cmd), tx_a);
-    rt.post(yy_socket_can::TxRequest{ifname, tx_a});
     if (verbose) {
-      const uint32_t id = tx_a.can_id & CAN_EFF_MASK;
-      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
-                << " (Write IQ_REFERENCE motor[0])\n";
+      std::cout << std::fixed << std::setprecision(4)
+                << "  pos_diff=" << pos_diff << " rad, vel_diff=" << vel_diff
+                << " rad/s, accel_diff=" << accel_diff << " rad/s^2\n"
+                << "  Fs=" << filtered_force << ", Fm*=" << fm_star << ", um=" << um << ", us="
+                << us << '\n';
+      std::cout.unsetf(std::ios::floatfield);
+      std::cout << std::setprecision(6);
     }
 
-    struct can_frame tx_b
+    struct can_frame tx_master
     {
     };
-    cgs[1].buildSetIqReference(static_cast<float>(iq_b_cmd), tx_b);
-    rt.post(yy_socket_can::TxRequest{ifname, tx_b});
+    cgs[0].buildSetIqReference(static_cast<float>(um), tx_master);
+    rt.post(yy_socket_can::TxRequest{ifname, tx_master});
     if (verbose) {
-      const uint32_t id = tx_b.can_id & CAN_EFF_MASK;
+      const uint32_t id = tx_master.can_id & CAN_EFF_MASK;
       std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
-                << " (Write IQ_REFERENCE motor[1])\n";
+                << " (Write IQ_REFERENCE master)\n";
+    }
+
+    struct can_frame tx_slave
+    {
+    };
+    cgs[1].buildSetIqReference(static_cast<float>(us), tx_slave);
+    rt.post(yy_socket_can::TxRequest{ifname, tx_slave});
+    if (verbose) {
+      const uint32_t id = tx_slave.can_id & CAN_EFF_MASK;
+      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
+                << " (Write IQ_REFERENCE slave)\n";
     }
 
     std::this_thread::sleep_until(t + dt_ns);
