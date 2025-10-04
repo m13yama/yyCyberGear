@@ -337,7 +337,11 @@ int main(int argc, char ** argv)
     }
 
     const auto status = cgs.front().getStatus();
-    double torque_measured_nm = -static_cast<double>(status.torque_Nm) - torque_bias_nm;
+    // The sign inversion below is required because the hardware reports torque
+    // in the opposite direction to the control convention. If your hardware uses
+    // a different convention, adjust 'torque_sign' accordingly.
+    constexpr int torque_sign = -1; // Set to +1 or -1 depending on hardware convention
+    double torque_measured_nm = torque_sign * static_cast<double>(status.torque_Nm) - torque_bias_nm;
     if (std::abs(torque_measured_nm) < torque_deadband_nm) torque_measured_nm = 0.0;
 
     double accel = (torque_measured_nm - virtual_damping * admittance_vel -
