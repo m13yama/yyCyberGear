@@ -344,6 +344,16 @@ int main(int argc, char ** argv)
     double torque_measured_nm = torque_sign * static_cast<double>(status.torque_Nm) - torque_bias_nm;
     if (std::abs(torque_measured_nm) < torque_deadband_nm) torque_measured_nm = 0.0;
 
+    // Admittance dynamics equation:
+    //   M*a = τ - D*v - K*x
+    //   where:
+    //     τ = external torque (torque_measured_nm)
+    //     D = damping (virtual_damping)
+    //     K = stiffness (virtual_stiffness)
+    //     M = virtual mass (virtual_mass)
+    //     a = acceleration (accel)
+    //     v = velocity (admittance_vel)
+    //     x = position (admittance_pos)
     double accel = (torque_measured_nm - virtual_damping * admittance_vel -
                     virtual_stiffness * admittance_pos) /
                    virtual_mass;
