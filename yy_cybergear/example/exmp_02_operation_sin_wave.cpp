@@ -39,12 +39,11 @@
 #include <thread>
 #include <vector>
 
+#include "exmp_helper.hpp"
 #include "yy_cybergear/cybergear.hpp"
 #include "yy_cybergear/logging.hpp"
 #include "yy_cybergear/protocol_types.hpp"
 #include "yy_socket_can/can_runtime.hpp"
-
-#include "exmp_helper.hpp"
 
 namespace
 {
@@ -52,12 +51,12 @@ std::atomic<bool> g_running{true};
 void handle_sigint(int) { g_running = false; }
 
 using exmp_helper::check_for_errors;
+using exmp_helper::Clock;
 using exmp_helper::preflight_sync;
 using exmp_helper::print_params;
 using exmp_helper::print_status;
 using exmp_helper::register_can_handler;
 using exmp_helper::wait_for_enter_or_sigint;
-using exmp_helper::Clock;
 
 }  // namespace
 
@@ -77,7 +76,7 @@ int main(int argc, char ** argv)
   double kd = 1.0;          // velocity gain
   double target_vel = 0.0;  // additional target velocity [rad/s]
   double tau_offset = 0.0;  // offset torque [Nm]
-  int rate_hz = 100;        // control loop rate [Hz]
+  int rate_hz = 100;        // control loop rate [Hz] (max 200)
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -104,7 +103,7 @@ int main(int argc, char ** argv)
   app.add_option("--target-vel", target_vel, "Additional target velocity [rad/s]")
     ->capture_default_str();
   app.add_option("--tau-offset", tau_offset, "Offset torque [Nm]")->capture_default_str();
-  app.add_option("-r,--rate", rate_hz, "Control loop rate [Hz]")
+  app.add_option("-r,--rate", rate_hz, "Control loop rate [Hz] (max 200)")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
   app.add_flag("-v,--verbose", verbose, "Verbose CAN frame prints");
@@ -113,6 +112,11 @@ int main(int argc, char ** argv)
     app.parse(argc, argv);
   } catch (const CLI::ParseError & e) {
     return app.exit(e);
+  }
+  if (rate_hz > 200) {
+    std::cerr << "Safety: capping rate to 200 Hz due to SocketCAN responsiveness (requested "
+              << rate_hz << ")\n";
+    rate_hz = 200;
   }
 
   unsigned long host_ul = 0x00UL;
