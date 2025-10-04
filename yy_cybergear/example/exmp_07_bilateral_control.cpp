@@ -80,7 +80,7 @@ int main(int argc, char ** argv)
   std::string host_id_str{"0x00"};
   std::vector<std::string> motor_id_strs{"0x01", "0x02"};
   bool verbose = false;
-  int rate_hz = 400;  // faster loop for responsive coupling
+  int rate_hz = 200;
 
   // Approach (move-to-zero) settings
   double approach_speed_rad_s = 1.0;     // speed limit during approach [rad/s]
@@ -222,7 +222,7 @@ int main(int argc, char ** argv)
   std::cout << "\nCollected parameters (including UID):\n";
   for (const auto & cg : cgs) print_params(cg);
 
-  std::cout << "\nPress Enter to start bilateral control (Ctrl+C to exit) ..." << std::endl;
+  std::cout << "\nPress Enter to start approach (Ctrl+C to exit) ..." << std::endl;
   if (!wait_for_enter_or_sigint(g_running)) {
     rt.stop();
     return EXIT_SUCCESS;
@@ -336,6 +336,22 @@ int main(int argc, char ** argv)
     }
   }
 
+  // Stop motors once after approach before changing mode
+  std::cout << "Approach complete: stopping motors before mode switch ..." << std::endl;
+  for (auto & cg : cgs) {
+    struct can_frame tx
+    {
+    };
+    cg.buildStop(tx);
+    rt.post(yy_socket_can::TxRequest{ifname, tx});
+    if (verbose) {
+      const uint32_t id = tx.can_id & CAN_EFF_MASK;
+      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (Stop)\n";
+    }
+  }
+  // brief settle
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
   // Switch to Current mode to start bilateral current control
   for (auto & cg : cgs) {
     struct can_frame tx
@@ -349,6 +365,27 @@ int main(int argc, char ** argv)
                 << " (Write RUN_MODE=Current)\n";
     }
   }
+
+  // Wait for user confirmation to start teleoperation
+  std::cout << "\nPress Enter to start teleoperation (Ctrl+C to exit) ..." << std::endl;
+  if (!wait_for_enter_or_sigint(g_running)) {
+    rt.stop();
+    return EXIT_SUCCESS;
+  }
+
+  // Re-enable motors in Current mode before entering control loop
+  for (auto & cg : cgs) {
+    struct can_frame tx
+    {
+    };
+    cg.buildEnable(tx);
+    rt.post(yy_socket_can::TxRequest{ifname, tx});
+    if (verbose) {
+      const uint32_t id = tx.can_id & CAN_EFF_MASK;
+      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (Enable)\n";
+    }
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
   float neutral_offset = 0.0f;
   bool neutral_captured = false;
