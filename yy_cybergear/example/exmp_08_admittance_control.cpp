@@ -75,7 +75,7 @@ int main(int argc, char ** argv)
 
   double virtual_mass = 0.05;           // virtual inertia [N·m·s^2/rad]
   double virtual_damping = 0.4;         // virtual damping [N·m·s/rad]
-  double virtual_stiffness = 1.5;       // virtual stiffness [N·m/rad]
+  double virtual_stiffness = 0.8;       // virtual stiffness [N·m/rad]
   double displacement_limit_rad = 0.6;  // max admittance displacement [rad]
   double velocity_limit_rad_s = 4.0;    // max admittance velocity [rad/s]
   double torque_bias_nm = 0.0;          // subtract constant torque bias [N·m]
@@ -354,7 +354,7 @@ int main(int argc, char ** argv)
     double torque_measured_nm = -static_cast<double>(status.torque_Nm) - torque_bias_nm;
     if (std::abs(torque_measured_nm) < torque_deadband_nm) torque_measured_nm = 0.0;
 
-    double accel = (-torque_measured_nm - virtual_damping * admittance_vel -
+    double accel = (torque_measured_nm - virtual_damping * admittance_vel -
                     virtual_stiffness * admittance_pos) /
                    virtual_mass;
     if (!std::isfinite(accel)) accel = 0.0;
