@@ -74,8 +74,8 @@ int main(int argc, char ** argv)
   int rate_hz = 200;
 
   double virtual_mass = 0.05;        // virtual inertia [N·m·s^2/rad]
-  double virtual_damping = 0.4;      // virtual damping [N·m·s/rad]
-  double virtual_stiffness = 0.8;    // virtual stiffness [N·m/rad]
+  double virtual_damping = 0.2;      // virtual damping [N·m·s/rad]
+  double virtual_stiffness = 0.4;    // virtual stiffness [N·m/rad]
   double torque_bias_nm = 0.0;       // subtract constant torque bias [N·m]
   double torque_deadband_nm = 0.02;  // ignore small torques [N·m]
   double speed_limit_rad_s = 12.0;   // firmware Position-mode speed limit [rad/s]
