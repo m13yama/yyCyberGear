@@ -58,7 +58,7 @@ using exmp_helper::wait_for_enter_or_sigint;
 
 int main(int argc, char ** argv)
 {
-  CLI::App app{"exmp_06: position follow lowest-ID motor"};
+  CLI::App app{"exmp_06: unilateral control lowest-ID motor"};
 
   std::string ifname{"can0"};
   std::string host_id_str{"0x00"};
