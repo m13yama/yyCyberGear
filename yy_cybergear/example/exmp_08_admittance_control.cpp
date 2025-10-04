@@ -243,18 +243,6 @@ int main(int argc, char ** argv)
     return EXIT_SUCCESS;
   }
 
-  // if (!cgs.front().isStatusInitialized()) {
-  //   std::cerr << "Waiting for status frames to provide torque feedback..." << std::endl;
-  //   while (g_running && rt.isRunning() && !cgs.front().isStatusInitialized()) {
-  //     std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  //   }
-  //   if (!cgs.front().isStatusInitialized()) {
-  //     std::cerr << "No status frames received; cannot perform admittance control." << std::endl;
-  //     rt.stop();
-  //     return EXIT_FAILURE;
-  //   }
-  // }
-
   const float neutral_angle = current_angle_rad(cgs.front());
   std::cout << "Captured neutral angle: " << neutral_angle << " rad" << std::endl;
 
@@ -351,7 +339,7 @@ int main(int argc, char ** argv)
     }
 
     const auto status = cgs.front().getStatus();
-    double torque_measured_nm = static_cast<double>(status.torque_Nm) - torque_bias_nm;
+    double torque_measured_nm = -static_cast<double>(status.torque_Nm) - torque_bias_nm;
     if (std::abs(torque_measured_nm) < torque_deadband_nm) torque_measured_nm = 0.0;
 
     if (!torque_initialized) {
