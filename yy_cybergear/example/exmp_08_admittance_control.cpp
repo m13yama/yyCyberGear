@@ -80,7 +80,6 @@ int main(int argc, char ** argv)
   double velocity_limit_rad_s = 4.0;    // max admittance velocity [rad/s]
   double torque_bias_nm = 0.0;          // subtract constant torque bias [N·m]
   double torque_deadband_nm = 0.02;     // ignore small torques [N·m]
-  double torque_alpha = 1.0;            // EMA coefficient (1.0 = no filtering)
   double speed_limit_rad_s = 12.0;      // firmware Position-mode speed limit [rad/s]
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
@@ -121,12 +120,6 @@ int main(int argc, char ** argv)
   app
     .add_option("--torque-deadband", torque_deadband_nm, "Deadband before admitting torque [N·m]")
     ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app
-    .add_option(
-      "--torque-alpha", torque_alpha,
-      "EMA coefficient for torque filtering (1=no filter, 0<alpha<=1)")
-    ->check(CLI::Range(0.0, 1.0))
     ->capture_default_str();
   app
     .add_option(
@@ -317,8 +310,6 @@ int main(int argc, char ** argv)
   auto last_step = Clock::now();
   double admittance_pos = 0.0;
   double admittance_vel = 0.0;
-  double torque_filtered_nm = 0.0;
-  bool torque_initialized = false;
 
   while (g_running && rt.isRunning()) {
     const auto t = Clock::now();
@@ -342,15 +333,7 @@ int main(int argc, char ** argv)
     double torque_measured_nm = -static_cast<double>(status.torque_Nm) - torque_bias_nm;
     if (std::abs(torque_measured_nm) < torque_deadband_nm) torque_measured_nm = 0.0;
 
-    if (!torque_initialized) {
-      torque_filtered_nm = torque_measured_nm;
-      torque_initialized = true;
-    } else {
-      torque_filtered_nm =
-        torque_alpha * torque_measured_nm + (1.0 - torque_alpha) * torque_filtered_nm;
-    }
-
-    double accel = (-torque_filtered_nm - virtual_damping * admittance_vel -
+    double accel = (-torque_measured_nm - virtual_damping * admittance_vel -
                     virtual_stiffness * admittance_pos) /
                    virtual_mass;
     if (!std::isfinite(accel)) accel = 0.0;
