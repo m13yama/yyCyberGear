@@ -40,11 +40,10 @@
 #include <thread>
 #include <vector>
 
+#include "exmp_helper.hpp"
 #include "yy_cybergear/cybergear.hpp"
 #include "yy_cybergear/logging.hpp"
 #include "yy_socket_can/can_runtime.hpp"
-
-#include "exmp_helper.hpp"
 
 namespace
 {
@@ -85,7 +84,7 @@ int main(int argc, char ** argv)
   double pos_offset = 0.0;
   double phase_deg = 0.0;
   double phase_step_deg = 0.0;
-  int rate_hz = 100;
+  int rate_hz = 100;  // max 200
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -109,7 +108,7 @@ int main(int argc, char ** argv)
     .add_option(
       "--phase-step-deg", phase_step_deg, "Additional phase offset per motor index [deg]")
     ->capture_default_str();
-  app.add_option("-r,--rate", rate_hz, "Control loop rate [Hz]")
+  app.add_option("-r,--rate", rate_hz, "Control loop rate [Hz] (max 200)")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
   app.add_flag("-v,--verbose", verbose, "Verbose CAN frame prints");
@@ -118,6 +117,11 @@ int main(int argc, char ** argv)
     app.parse(argc, argv);
   } catch (const CLI::ParseError & e) {
     return app.exit(e);
+  }
+  if (rate_hz > 200) {
+    std::cerr << "Safety: capping rate to 200 Hz due to SocketCAN responsiveness (requested "
+              << rate_hz << ")\n";
+    rate_hz = 200;
   }
 
   unsigned long host_ul = 0x00UL;

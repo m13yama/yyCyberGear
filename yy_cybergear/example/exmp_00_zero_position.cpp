@@ -32,19 +32,18 @@
 #include <thread>
 #include <vector>
 
+#include "exmp_helper.hpp"
 #include "yy_cybergear/cybergear.hpp"
 #include "yy_cybergear/logging.hpp"
 #include "yy_socket_can/can_runtime.hpp"
-
-#include "exmp_helper.hpp"
 
 namespace
 {
 std::atomic<bool> g_running{true};
 void handle_sigint(int) { g_running = false; }
 
-using exmp_helper::Clock;
 using exmp_helper::check_for_errors;
+using exmp_helper::Clock;
 using exmp_helper::preflight_sync;
 using exmp_helper::print_params;
 using exmp_helper::print_status;
@@ -79,11 +78,10 @@ int main(int argc, char ** argv)
   std::optional<double> speed_kp;
   std::optional<double> speed_ki;
 
-  int status_rate_hz = 20;
+  int status_rate_hz = 20;         // max 200
   double hold_duration_sec = 3.0;  // time to hold zero after enable
 
-  app.add_option("-i,--interface", ifname, "CAN interface (e.g., can0)")
-    ->capture_default_str();
+  app.add_option("-i,--interface", ifname, "CAN interface (e.g., can0)")->capture_default_str();
   app.add_option("-H,--host-id", host_id_str, "Host ID (decimal or 0x-prefixed hex)")
     ->capture_default_str();
   app.add_option("-M,--motor-id", motor_id_str, "Motor ID (decimal or 0x-prefixed hex)")
@@ -106,7 +104,7 @@ int main(int argc, char ** argv)
   app.add_option("--hold-sec", hold_duration_sec, "Duration to hold zero after enable [s]")
     ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
-  app.add_option("--status-rate", status_rate_hz, "Status print rate during hold [Hz]")
+  app.add_option("--status-rate", status_rate_hz, "Status print rate during hold [Hz] (max 200)")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
 
@@ -114,6 +112,12 @@ int main(int argc, char ** argv)
     app.parse(argc, argv);
   } catch (const CLI::ParseError & e) {
     return app.exit(e);
+  }
+  if (status_rate_hz > 200) {
+    std::cerr
+      << "Safety: capping status-rate to 200 Hz due to SocketCAN responsiveness (requested "
+      << status_rate_hz << ")\n";
+    status_rate_hz = 200;
   }
 
   unsigned long host_ul = 0;
@@ -126,8 +130,8 @@ int main(int argc, char ** argv)
     return EXIT_FAILURE;
   }
   if (host_ul > 0xFFul || motor_ul > 0xFFul) {
-    std::cerr << "Host and motor IDs must be 0..255 (got host=" << host_ul << ", motor="
-              << motor_ul << ")\n";
+    std::cerr << "Host and motor IDs must be 0..255 (got host=" << host_ul
+              << ", motor=" << motor_ul << ")\n";
     return EXIT_FAILURE;
   }
   const uint8_t host = static_cast<uint8_t>(host_ul & 0xFFu);
@@ -183,8 +187,9 @@ int main(int argc, char ** argv)
   print_params(cg);
 
   using SetterFn = void (yy_cybergear::CyberGear::*)(float, struct can_frame &) const noexcept;
-  auto maybe_write_param = [&](const std::optional<double> & value, SetterFn setter,
-                               uint16_t index, const std::string & label) {
+  auto maybe_write_param = [&](
+                             const std::optional<double> & value, SetterFn setter, uint16_t index,
+                             const std::string & label) {
     if (!value) return;
     const float fvalue = static_cast<float>(*value);
     std::cout << "Writing " << label << " = " << *value << '\n';
@@ -195,8 +200,8 @@ int main(int argc, char ** argv)
     rt.post(yy_socket_can::TxRequest{ifname, tx});
     if (verbose) {
       const uint32_t id = tx.can_id & CAN_EFF_MASK;
-      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (Write "
-                << label << ")\n";
+      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (Write " << label
+                << ")\n";
     }
     struct can_frame read_tx
     {
@@ -210,22 +215,27 @@ int main(int argc, char ** argv)
     }
   };
 
-  maybe_write_param(speed_limit, &yy_cybergear::CyberGear::buildSetSpeedLimit,
-                    yy_cybergear::SPEED_LIMIT, "SPEED_LIMIT");
-  maybe_write_param(current_limit, &yy_cybergear::CyberGear::buildSetCurrentLimit,
-                    yy_cybergear::CURRENT_LIMIT, "CURRENT_LIMIT");
-  maybe_write_param(torque_limit, &yy_cybergear::CyberGear::buildSetTorqueLimit,
-                    yy_cybergear::TORQUE_LIMIT, "TORQUE_LIMIT");
-  maybe_write_param(position_kp, &yy_cybergear::CyberGear::buildSetPositionKp,
-                    yy_cybergear::POSITION_KP, "POSITION_KP");
-  maybe_write_param(speed_kp, &yy_cybergear::CyberGear::buildSetSpeedKp,
-                    yy_cybergear::SPEED_KP, "SPEED_KP");
-  maybe_write_param(speed_ki, &yy_cybergear::CyberGear::buildSetSpeedKi,
-                    yy_cybergear::SPEED_KI, "SPEED_KI");
+  maybe_write_param(
+    speed_limit, &yy_cybergear::CyberGear::buildSetSpeedLimit, yy_cybergear::SPEED_LIMIT,
+    "SPEED_LIMIT");
+  maybe_write_param(
+    current_limit, &yy_cybergear::CyberGear::buildSetCurrentLimit, yy_cybergear::CURRENT_LIMIT,
+    "CURRENT_LIMIT");
+  maybe_write_param(
+    torque_limit, &yy_cybergear::CyberGear::buildSetTorqueLimit, yy_cybergear::TORQUE_LIMIT,
+    "TORQUE_LIMIT");
+  maybe_write_param(
+    position_kp, &yy_cybergear::CyberGear::buildSetPositionKp, yy_cybergear::POSITION_KP,
+    "POSITION_KP");
+  maybe_write_param(
+    speed_kp, &yy_cybergear::CyberGear::buildSetSpeedKp, yy_cybergear::SPEED_KP, "SPEED_KP");
+  maybe_write_param(
+    speed_ki, &yy_cybergear::CyberGear::buildSetSpeedKi, yy_cybergear::SPEED_KI, "SPEED_KI");
 
   if (speed_limit || current_limit || torque_limit || position_kp || speed_kp || speed_ki) {
     std::cout << "Waiting for parameter write responses..." << std::endl;
-    sleep_until_or_abort(Clock::now() + std::chrono::milliseconds(300), std::chrono::milliseconds(20));
+    sleep_until_or_abort(
+      Clock::now() + std::chrono::milliseconds(300), std::chrono::milliseconds(20));
   }
 
   if (check_for_errors(cg)) {
@@ -237,7 +247,9 @@ int main(int argc, char ** argv)
   std::cout << "\nUpdated parameters:\n";
   print_params(cg);
 
-  std::cout << "\nAlign the motor to your desired zero position, then press Enter to store mechanical zero (Ctrl+C to abort)." << std::endl;
+  std::cout << "\nAlign the motor to your desired zero position, then press Enter to store "
+               "mechanical zero (Ctrl+C to abort)."
+            << std::endl;
   if (!wait_for_enter_or_sigint(g_running)) {
     rt.stop();
     return EXIT_SUCCESS;
@@ -256,7 +268,8 @@ int main(int argc, char ** argv)
     std::cout << "Mechanical zero command sent." << std::endl;
     if (verbose) {
       const uint32_t id = tx.can_id & CAN_EFF_MASK;
-      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (SetMechanicalZero)\n";
+      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
+                << " (SetMechanicalZero)\n";
     }
   }
 
@@ -273,7 +286,8 @@ int main(int argc, char ** argv)
     }
   }
 
-  sleep_until_or_abort(Clock::now() + std::chrono::milliseconds(200), std::chrono::milliseconds(20));
+  sleep_until_or_abort(
+    Clock::now() + std::chrono::milliseconds(200), std::chrono::milliseconds(20));
 
   if (check_for_errors(cg)) {
     std::cerr << "ERROR: Motor reported faults after zeroing command.\n";
@@ -281,7 +295,8 @@ int main(int argc, char ** argv)
     return EXIT_FAILURE;
   }
 
-  std::cout << "\nPress Enter to enable the motor and drive/hold at zero (Ctrl+C to abort)." << std::endl;
+  std::cout << "\nPress Enter to enable the motor and drive/hold at zero (Ctrl+C to abort)."
+            << std::endl;
   if (!wait_for_enter_or_sigint(g_running)) {
     rt.stop();
     return EXIT_SUCCESS;
@@ -315,8 +330,7 @@ int main(int argc, char ** argv)
     }
   }
 
-  const std::chrono::nanoseconds dt_ns{
-    static_cast<long long>(1e9 / std::max(1, status_rate_hz))};
+  const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, status_rate_hz))};
   const auto hold_deadline = Clock::now() + std::chrono::duration<double>(hold_duration_sec);
 
   while (g_running && Clock::now() < hold_deadline) {

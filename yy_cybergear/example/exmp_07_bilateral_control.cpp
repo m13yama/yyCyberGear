@@ -102,7 +102,7 @@ int main(int argc, char ** argv)
       "Motor IDs for bilateral pair (repeat -M or comma-separated; decimal or 0x-prefixed hex)")
     ->delimiter(',')
     ->capture_default_str();
-  app.add_option("-r,--rate", rate_hz, "Control loop rate [Hz]")
+  app.add_option("-r,--rate", rate_hz, "Control loop rate [Hz] (max 200)")
     ->check(CLI::PositiveNumber)
     ->capture_default_str();
   app.add_option("-k,--stiffness", stiffness_a_per_rad, "Virtual stiffness gain [A/rad]")
@@ -136,6 +136,12 @@ int main(int argc, char ** argv)
     app.parse(argc, argv);
   } catch (const CLI::ParseError & e) {
     return app.exit(e);
+  }
+
+  if (rate_hz > 200) {
+    std::cerr << "Safety: capping rate to 200 Hz due to SocketCAN responsiveness (requested "
+              << rate_hz << ")\n";
+    rate_hz = 200;
   }
 
   unsigned long host_ul = 0x00UL;
