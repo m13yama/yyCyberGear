@@ -14,7 +14,8 @@
 
 // Bilateral current control sample:
 // - Two motors share motion like a virtual rigid bar using current mode.
-// - Read angles/velocities from status mirror and compute differential torque.
+// - User manually poses motors at desired neutral (zero) relationship, then presses Enter.
+// - That relative pose is captured as zero-point; controller enforces coupling about it.
 // - Command equal and opposite motor currents with configurable stiffness / damping.
 
 #include <linux/can.h>
@@ -82,15 +83,9 @@ int main(int argc, char ** argv)
   bool verbose = false;
   int rate_hz = 200;
 
-  // Approach (move-to-zero) settings
-  double approach_speed_rad_s = 1.0;     // speed limit during approach [rad/s]
-  double approach_tolerance_rad = 0.03;  // consider reached when |angle-0| < tol [rad]
-  int approach_hold_ms = 300;            // keep within tol for this long [ms]
-  double approach_timeout_s = 10.0;      // abort if not reached within this time [s]
-
-  double stiffness_a_per_rad = 3.0;   // virtual stiffness [A/rad]
-  double damping_a_per_rad_s = 0.08;  // virtual damping [A/(rad/s)]
-  double iq_limit = 8.0;              // saturate commanded currents [A]
+  double stiffness_a_per_rad = 6.0;  // virtual stiffness [A/rad]
+  double damping_a_per_rad_s = 0.1;  // virtual damping [A/(rad/s)]
+  double iq_limit = 8.0;             // saturate commanded currents [A]
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -116,21 +111,7 @@ int main(int argc, char ** argv)
     ->capture_default_str();
   app.add_flag("-v,--verbose", verbose, "Verbose CAN frame prints");
 
-  // Approach options
-  app
-    .add_option(
-      "--approach-speed", approach_speed_rad_s, "Approach speed limit in Position mode [rad/s]")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app.add_option("--zero-tolerance", approach_tolerance_rad, "Zero detection tolerance [rad]")
-    ->check(CLI::NonNegativeNumber)
-    ->capture_default_str();
-  app.add_option("--zero-hold-ms", approach_hold_ms, "Zero detection hold duration [ms]")
-    ->check(CLI::PositiveNumber)
-    ->capture_default_str();
-  app.add_option("--approach-timeout", approach_timeout_s, "Approach timeout [s]")
-    ->check(CLI::PositiveNumber)
-    ->capture_default_str();
+  // (Legacy approach-to-zero options removed; neutral is now set manually by user.)
 
   try {
     app.parse(argc, argv);
@@ -200,9 +181,6 @@ int main(int argc, char ** argv)
   std::cout << "Bilateral current coupling motors [0x" << std::uppercase << std::hex
             << std::setw(2) << std::setfill('0') << static_cast<unsigned>(motors[0]) << ", 0x"
             << std::setw(2) << static_cast<unsigned>(motors[1]) << std::dec << "] on " << ifname
-            << "\n  approach: speed=" << approach_speed_rad_s
-            << " rad/s, tol=" << approach_tolerance_rad << " rad, hold=" << approach_hold_ms
-            << " ms, timeout=" << approach_timeout_s << " s"
             << "\n  current mode: stiffness=" << stiffness_a_per_rad << " A/rad"
             << ", damping=" << damping_a_per_rad_s << " A/(rad/s)"
             << ", limit=" << iq_limit << " A, rate=" << rate_hz << " Hz" << '\n';
@@ -228,137 +206,16 @@ int main(int argc, char ** argv)
   std::cout << "\nCollected parameters (including UID):\n";
   for (const auto & cg : cgs) print_params(cg);
 
-  std::cout << "\nPress Enter to start approach (Ctrl+C to exit) ..." << std::endl;
+  std::cout << "\nManually align the two motors at the desired neutral (zero) relative position."
+            << "\nPress Enter to capture zero-point and start bilateral current control (Ctrl+C "
+               "to exit) ..."
+            << std::endl;
   if (!wait_for_enter_or_sigint(g_running)) {
     rt.stop();
     return EXIT_SUCCESS;
   }
 
-  // Approach phase: move both motors to 0 rad in Position mode slowly
-  std::cout << "Approach: switching to Position mode and moving to 0 rad ..." << std::endl;
-  for (auto & cg : cgs) {
-    struct can_frame tx
-    {
-    };
-    cg.buildSetRunMode(yy_cybergear::RunMode::Position, tx);
-    rt.post(yy_socket_can::TxRequest{ifname, tx});
-    if (verbose) {
-      const uint32_t id = tx.can_id & CAN_EFF_MASK;
-      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
-                << " (Write RUN_MODE=Position)\n";
-    }
-  }
-  for (auto & cg : cgs) {
-    struct can_frame tx
-    {
-    };
-    cg.buildSetSpeedLimit(static_cast<float>(approach_speed_rad_s), tx);
-    rt.post(yy_socket_can::TxRequest{ifname, tx});
-    if (verbose) {
-      const uint32_t id = tx.can_id & CAN_EFF_MASK;
-      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
-                << " (Write SPEED_LIMIT for approach)\n";
-    }
-  }
-  for (auto & cg : cgs) {
-    struct can_frame tx
-    {
-    };
-    cg.buildEnable(tx);
-    rt.post(yy_socket_can::TxRequest{ifname, tx});
-    if (verbose) {
-      const uint32_t id = tx.can_id & CAN_EFF_MASK;
-      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (Enable)\n";
-    }
-  }
-
-  // Command zero position until within tolerance for hold duration
-  {
-    const auto approach_start = Clock::now();
-    std::optional<Clock::time_point> hold_start;
-    const auto hold_dur = std::chrono::milliseconds(approach_hold_ms);
-    const auto timeout_dur = std::chrono::duration<double>(approach_timeout_s);
-    const auto dt_approach =
-      std::chrono::nanoseconds{static_cast<long long>(1e9 / std::max(1, rate_hz))};
-    while (g_running && rt.isRunning()) {
-      const auto t = Clock::now();
-      const double t_now = std::chrono::duration<double>(t - t0).count();
-
-      for (const auto & cg : cgs) {
-        if (check_for_errors(cg)) {
-          std::cerr << "ERROR: Stopping due to detected faults during approach." << std::endl;
-          g_running = false;
-          break;
-        }
-      }
-      if (!g_running) break;
-
-      // Send position references to 0.0 rad
-      for (auto & cg : cgs) {
-        struct can_frame tx
-        {
-        };
-        cg.buildSetPositionReference(0.0f, tx);
-        rt.post(yy_socket_can::TxRequest{ifname, tx});
-        if (verbose) {
-          const uint32_t id = tx.can_id & CAN_EFF_MASK;
-          std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
-                    << " (Write POSITION_REFERENCE=0)\n";
-        }
-      }
-
-      const float a0 = current_angle_rad(cgs[0]);
-      const float a1 = current_angle_rad(cgs[1]);
-      const float e0 = std::abs(a0);
-      const float e1 = std::abs(a1);
-      const bool in_tol = (e0 <= static_cast<float>(approach_tolerance_rad)) &&
-                          (e1 <= static_cast<float>(approach_tolerance_rad));
-
-      for (const auto & cg : cgs) print_status(cg, t_now);
-
-      if (in_tol) {
-        if (!hold_start.has_value()) hold_start = t;
-        if ((t - *hold_start) >= hold_dur) {
-          std::cout << "Approach: both motors within tolerance for hold duration." << std::endl;
-          break;
-        }
-      } else {
-        hold_start.reset();
-      }
-
-      if ((t - approach_start) > timeout_dur) {
-        std::cerr << "Approach timeout after " << approach_timeout_s << " s. Aborting."
-                  << std::endl;
-        rt.stop();
-        return EXIT_FAILURE;
-      }
-
-      std::this_thread::sleep_until(t + dt_approach);
-    }
-
-    if (!g_running || !rt.isRunning()) {
-      rt.stop();
-      return EXIT_SUCCESS;
-    }
-  }
-
-  // Stop motors once after approach before changing mode
-  std::cout << "Approach complete: stopping motors before mode switch ..." << std::endl;
-  for (auto & cg : cgs) {
-    struct can_frame tx
-    {
-    };
-    cg.buildStop(tx);
-    rt.post(yy_socket_can::TxRequest{ifname, tx});
-    if (verbose) {
-      const uint32_t id = tx.can_id & CAN_EFF_MASK;
-      std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (Stop)\n";
-    }
-  }
-  // brief settle
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-  // Switch to Current mode to start bilateral current control
+  // Switch directly to Current mode and enable
   for (auto & cg : cgs) {
     struct can_frame tx
     {
@@ -371,15 +228,6 @@ int main(int argc, char ** argv)
                 << " (Write RUN_MODE=Current)\n";
     }
   }
-
-  // Wait for user confirmation to start teleoperation
-  std::cout << "\nPress Enter to start teleoperation (Ctrl+C to exit) ..." << std::endl;
-  if (!wait_for_enter_or_sigint(g_running)) {
-    rt.stop();
-    return EXIT_SUCCESS;
-  }
-
-  // Re-enable motors in Current mode before entering control loop
   for (auto & cg : cgs) {
     struct can_frame tx
     {
@@ -393,8 +241,12 @@ int main(int argc, char ** argv)
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-  float neutral_offset = 0.0f;
-  bool neutral_captured = false;
+  // Capture zero-point now
+  const float angle_a0 = current_angle_rad(cgs[0]);
+  const float angle_b0 = current_angle_rad(cgs[1]);
+  const float neutral_offset = angle_a0 - angle_b0;  // relative angle considered zero
+  std::cout << "Captured zero-point: angle_a - angle_b = " << neutral_offset << " rad"
+            << std::endl;
 
   const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
   while (g_running && rt.isRunning()) {
@@ -414,11 +266,6 @@ int main(int argc, char ** argv)
     const float angle_b = current_angle_rad(cgs[1]);
     const float vel_a = current_velocity_rad_s(cgs[0]);
     const float vel_b = current_velocity_rad_s(cgs[1]);
-
-    if (!neutral_captured) {
-      neutral_offset = angle_a - angle_b;
-      neutral_captured = true;
-    }
 
     const float angle_error = (angle_a - angle_b) - neutral_offset;
     const float vel_error = vel_a - vel_b;

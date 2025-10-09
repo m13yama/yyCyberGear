@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Follow-position control: use the lowest-ID motor as master (source of angle),
-// and command all other motors to follow its mechanical angle using Position mode.
-// Uses CanRuntime + CyberGear helper, multi-motor friendly.
+// Follow-position control with manual zero capture:
+// - Lowest-ID motor is master (angle source, run in Current mode with 0 A reference).
+// - User manually arranges relative poses, presses Enter to capture per-follower offsets.
+// - Each follower commanded to (master_angle - captured_offset), maintaining initial configuration.
+// - Uses CanRuntime + CyberGear helper, multi-motor friendly.
 
 #include <linux/can.h>
 #include <poll.h>
@@ -64,7 +66,10 @@ int main(int argc, char ** argv)
   std::string host_id_str{"0x00"};
   std::vector<std::string> motor_id_strs{"0x01", "0x02"};
   bool verbose = false;
-  int rate_hz = 200;  // faster to track position smoothly (safety cap <= 200)
+  int rate_hz = 200;          // faster to track position smoothly (safety cap <= 200)
+  float position_kp = 50.0f;  // example default (tune per hardware)
+  float speed_kp = 1.0f;      // example default
+  float speed_ki = 0.0f;      // example default
 
   app.add_option("-i,--interface", ifname, "CAN interface name (e.g., can0)")
     ->capture_default_str();
@@ -78,6 +83,15 @@ int main(int argc, char ** argv)
     ->capture_default_str();
   app.add_option("-r,--rate", rate_hz, "Control loop rate [Hz] (max 200)")
     ->check(CLI::PositiveNumber)
+    ->capture_default_str();
+  app.add_option("--pos-kp", position_kp, "Position proportional gain (POSITION_KP)")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  app.add_option("--spd-kp", speed_kp, "Speed loop proportional gain (SPEED_KP)")
+    ->check(CLI::NonNegativeNumber)
+    ->capture_default_str();
+  app.add_option("--spd-ki", speed_ki, "Speed loop integral gain (SPEED_KI)")
+    ->check(CLI::NonNegativeNumber)
     ->capture_default_str();
 
   app.add_flag("-v,--verbose", verbose, "Verbose CAN frame prints");
@@ -152,7 +166,9 @@ int main(int argc, char ** argv)
     std::cout << "0x" << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
               << static_cast<unsigned>(motors[i]);
   }
-  std::cout << std::dec << " on " << ifname << ", rate=" << rate_hz << " Hz" << '\n';
+  std::cout << std::dec << " on " << ifname << ", rate=" << rate_hz << " Hz"
+            << "\n  Gains: POSITION_KP=" << position_kp << ", SPEED_KP=" << speed_kp
+            << ", SPEED_KI=" << speed_ki << '\n';
 
   const std::vector<uint16_t> preflight_params = {
     yy_cybergear::RUN_MODE,
@@ -178,13 +194,15 @@ int main(int argc, char ** argv)
   std::cout << "\nCollected parameters (including UID):\n";
   for (const auto & cg : cgs) print_params(cg);
 
-  std::cout << "\nPress Enter to start follow (Ctrl+C to exit) ..." << std::endl;
+  std::cout << "\nArrange motors in desired relative configuration (followers vs master)."
+               "\nPress Enter to capture zero offsets and start follow (Ctrl+C to exit) ..."
+            << std::endl;
   if (!wait_for_enter_or_sigint(g_running)) {
     rt.stop();
     return EXIT_SUCCESS;
   }
 
-  // Configure modes: master -> Current (will hold 0 A), followers -> Position; then enable all
+  // Configure modes: master -> Current (will hold 0 A), followers -> Position; then set gains & enable all
   for (auto & cg : cgs) {
     struct can_frame tx
     {
@@ -207,6 +225,50 @@ int main(int argc, char ** argv)
       }
     }
   }
+
+  // Apply gains (followers only for position/speed; master usually doesn't need position gains here)
+  for (auto & cg : cgs) {
+    if (cg.motor_id() == master_id) continue;  // skip master for position loop gains
+    // Position KP
+    {
+      struct can_frame tx
+      {
+      };
+      cg.buildSetPositionKp(position_kp, tx);
+      rt.post(yy_socket_can::TxRequest{ifname, tx});
+      if (verbose) {
+        const uint32_t id = tx.can_id & CAN_EFF_MASK;
+        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
+                  << " (Write POSITION_KP)\n";
+      }
+    }
+    // Speed KP
+    {
+      struct can_frame tx
+      {
+      };
+      cg.buildSetSpeedKp(speed_kp, tx);
+      rt.post(yy_socket_can::TxRequest{ifname, tx});
+      if (verbose) {
+        const uint32_t id = tx.can_id & CAN_EFF_MASK;
+        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
+                  << " (Write SPEED_KP)\n";
+      }
+    }
+    // Speed KI
+    {
+      struct can_frame tx
+      {
+      };
+      cg.buildSetSpeedKi(speed_ki, tx);
+      rt.post(yy_socket_can::TxRequest{ifname, tx});
+      if (verbose) {
+        const uint32_t id = tx.can_id & CAN_EFF_MASK;
+        std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
+                  << " (Write SPEED_KI)\n";
+      }
+    }
+  }
   for (auto & cg : cgs) {
     struct can_frame tx
     {
@@ -217,6 +279,41 @@ int main(int argc, char ** argv)
       const uint32_t id = tx.can_id & CAN_EFF_MASK;
       std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec << " (Enable)\n";
     }
+  }
+
+  // Capture per-follower offsets now (after enabling so status is streaming)
+  // offset[follower] = master_angle_at_capture - follower_angle_at_capture
+  std::vector<float> follower_offsets;  // aligned with cgs indices (only used for followers)
+  follower_offsets.resize(cgs.size(), 0.0f);
+  float master_capture_angle = 0.0f;
+  {
+    // Obtain current master angle (status preferred, fallback allowed)
+    for (const auto & cg : cgs) {
+      if (cg.motor_id() == master_id) {
+        master_capture_angle = cg.getStatus().angle_rad;
+        if (master_capture_angle == 0.0f && !cg.isStatusInitialized()) {
+          master_capture_angle = cg.mechanical_position();
+        }
+        break;
+      }
+    }
+    for (size_t i = 0; i < cgs.size(); ++i) {
+      const auto & cg = cgs[i];
+      if (cg.motor_id() == master_id) continue;
+      float follower_angle = cg.getStatus().angle_rad;
+      if (follower_angle == 0.0f && !cg.isStatusInitialized()) {
+        follower_angle = cg.mechanical_position();
+      }
+      follower_offsets[i] = master_capture_angle - follower_angle;
+    }
+  }
+  std::cout << "Captured offsets relative to master:" << std::endl;
+  for (size_t i = 0; i < cgs.size(); ++i) {
+    const auto & cg = cgs[i];
+    if (cg.motor_id() == master_id) continue;
+    std::cout << "  follower 0x" << std::uppercase << std::hex << std::setw(2) << std::setfill('0')
+              << static_cast<unsigned>(cg.motor_id()) << std::dec
+              << ": offset = " << follower_offsets[i] << " rad (master - follower)" << std::endl;
   }
 
   const std::chrono::nanoseconds dt_ns{static_cast<long long>(1e9 / std::max(1, rate_hz))};
@@ -268,18 +365,21 @@ int main(int argc, char ** argv)
       }
     }
 
-    // Command followers to master's angle
+    // Command followers to master's angle minus captured offset
     for (auto & cg : cgs) {
       if (cg.motor_id() == master_id) continue;
       struct can_frame tx
       {
       };
-      cg.buildSetPositionReference(master_angle, tx);
+      // Use stored offset for this follower index
+      const size_t idx = &cg - &cgs[0];
+      const float target = master_angle - follower_offsets[idx];
+      cg.buildSetPositionReference(target, tx);
       rt.post(yy_socket_can::TxRequest{ifname, tx});
       if (verbose) {
         const uint32_t id = tx.can_id & CAN_EFF_MASK;
         std::cout << "TX 0x" << std::hex << std::uppercase << id << std::dec
-                  << " (Write POSITION_REFERENCE)\n";
+                  << " (Write POSITION_REFERENCE with offset)\n";
       }
     }
 
